@@ -1,7 +1,6 @@
-streamlit
-pandas
-numpy
-matplotlib
-PyPDF2
-seaborn
-datetime
+streamlit==1.53.0
+pandas==2.3.3
+numpy==2.4.1
+matplotlib==3.10.8
+seaborn==0.13.2
+PyPDF2==3.0.1
