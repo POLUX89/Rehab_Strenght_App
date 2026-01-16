@@ -10,10 +10,13 @@ from datetime import datetime
 import seaborn as sns
 from matplotlib.ticker import MultipleLocator
 import matplotlib.dates as mdates
+import io
 
 st.set_page_config(page_title="Rehab Strength Dashboard", layout="wide")
-st.title("🏋️‍♂️ Rehab Strength Dashboard")
+st.title("🏋️‍♂️ Rehab Strength Dashboard V2.0", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
+st.caption(f"Version changes:\n-Collapsed files upload\n-Data Integrity\n-Bugs")
+st.markdown("---")
 
 # -------------------------
 # Sidebar
@@ -52,6 +55,7 @@ else:
 # -------------------------
 # Helpers
 # -------------------------
+
 def make_unique_columns(cols):
     """Fix duplicate column names by suffixing .1 .2 ... (Streamlit upload sometimes preserves dupes)."""
     seen = {}
@@ -161,77 +165,120 @@ def recovery_zone(x):
     if x >= 0.7: return "🟢 Ready"
     if x >= 0.55: return "🟡 Moderate"
     return "🔴 Low"
-# -------------------------
-# Uploads
-# -------------------------
-st.subheader("📥 Upload your cleaned CSVs")
-
-c1, c2, c3 = st.columns(3)
-with c1:
-    up_workouts = st.file_uploader("Workouts: clean_strong_workouts.csv", type=["csv"], key="workouts")
-with c2:
-    up_sleep = st.file_uploader("Sleep: clean_sleep_data.csv", type=["csv"], key="sleep")
-with c3:
-    up_recovery = st.file_uploader("Recovery: clean_recovery_data.csv", type=["csv"], key="recovery")
 
 # -------------------------
-# Load data
+# Uploads (hidden after loaded)
 # -------------------------
-workouts = sleep = recovery = None
 
-if up_workouts is not None:
-    workouts = pd.read_csv(up_workouts)
-    # normalize expected cols
-    if "DATE" in workouts.columns:
-        workouts["DATE"] = pd.to_datetime(workouts["DATE"], errors="coerce")
-    if "EXERCISE_NAME" in workouts.columns:
-        workouts["EXERCISE_NAME"] = workouts["EXERCISE_NAME"].astype(str).str.strip()
+# ---------- helpers ----------
+def all_loaded() -> bool:
+    return all(st.session_state.get(k) is not None for k in ["df_workouts", "df_sleep", "df_recovery"])
+
+def load_df_from_upload(uploaded_file):
+    data = uploaded_file.getvalue()
+    return pd.read_csv(io.BytesIO(data))
+
+def normalize_workouts(df):
+    if "DATE" in df.columns:
+        df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
+    if "EXERCISE_NAME" in df.columns:
+        df["EXERCISE_NAME"] = df["EXERCISE_NAME"].astype(str).str.strip()
     for col in ["WEIGHT_LBS", "REPS", "RPE", "VOLUME"]:
-        if col in workouts.columns:
-            workouts[col] = safe_numeric(workouts[col])
+        if col in df.columns:
+            df[col] = safe_numeric(df[col])
 
-    # add est 1RM (set-level)
-    if set(["WEIGHT_LBS", "REPS"]).issubset(workouts.columns):
-        workouts["est_1RM"] = workouts.apply(lambda r: epley_1rm(r["WEIGHT_LBS"], r["REPS"]), axis=1)
+    if set(["WEIGHT_LBS", "REPS"]).issubset(df.columns):
+        df["est_1RM"] = df.apply(lambda r: epley_1rm(r["WEIGHT_LBS"], r["REPS"]), axis=1)
 
-    # convenience date only
-    if "DATE" in workouts.columns:
-        workouts["Date"] = workouts["DATE"].dt.floor("D")
-        workouts["DAY"] = workouts["Date"]   #  Create a day column for home tab
-  
+    if "DATE" in df.columns:
+        df["Date"] = df["DATE"].dt.floor("D")
+        df["DAY"] = df["Date"]
+    return df
 
-if up_sleep is not None:
-    sleep = pd.read_csv(up_sleep)
-    sleep.columns = make_unique_columns(sleep.columns)
-
-    if "Date" not in sleep.columns:
+def normalize_sleep(df):
+    df.columns = make_unique_columns(df.columns)
+    if "Date" not in df.columns:
         for cand in ["DATE", "day", "date"]:
-            if cand in sleep.columns:
-                sleep = sleep.rename(columns={cand: "Date"})
+            if cand in df.columns:
+                df = df.rename(columns={cand: "Date"})
                 break
-
-    sleep = coerce_date(sleep, "Date")
-
+    df = coerce_date(df, "Date")
     for cand in ["Score", "Wake Count", "Efficiency", "Asleep hrs", "InBed hrs",
                  "REM hrs", "Light hrs", "Deep hrs"]:
-        if cand in sleep.columns:
-            sleep[cand] = safe_numeric(sleep[cand])
+        if cand in df.columns:
+            df[cand] = safe_numeric(df[cand])
+    return df
 
-    # 🔍 DEBUG — ADD THIS LINE
-    st.write("🛌 Sleep columns detected:", list(sleep.columns))
-
-if up_recovery is not None:
-    recovery = pd.read_csv(up_recovery)
-    recovery.columns = make_unique_columns(recovery.columns)
-    if "Date" not in recovery.columns:
+def normalize_recovery(df):
+    df.columns = make_unique_columns(df.columns)
+    if "Date" not in df.columns:
         for cand in ["DATE", "day", "date"]:
-            if cand in recovery.columns:
-                recovery = recovery.rename(columns={cand: "Date"})
+            if cand in df.columns:
+                df = df.rename(columns={cand: "Date"})
                 break
-    recovery = coerce_date(recovery, "Date")
-    for cand in ["Sigmoid Recovery Score", "RECOVERY_SCORE_RAW", "Stress_prev_day", "Overnight HRV", "Resting Heart Rate", "Score"]:
-        if cand in recovery.columns:
-            recovery[cand] = safe_numeric(recovery[cand])
+    df = coerce_date(df, "Date")
+    for cand in ["Sigmoid Recovery Score", "RECOVERY_SCORE_RAW", "Stress_prev_day",
+                 "Overnight HRV", "Resting Heart Rate", "Score"]:
+        if cand in df.columns:
+            df[cand] = safe_numeric(df[cand])
+    return df
+
+# ---------- init state ----------
+if "show_uploads" not in st.session_state:
+    st.session_state.show_uploads = True
+
+st.subheader("📥 Upload your cleaned CSVs")
+
+# status + button
+left, right = st.columns([3, 1])
+with left:
+    w_ok = "✅" if st.session_state.get("df_workouts") is not None else "⬜️"
+    s_ok = "✅" if st.session_state.get("df_sleep") is not None else "⬜️"
+    r_ok = "✅" if st.session_state.get("df_recovery") is not None else "⬜️"
+    st.caption(f"{w_ok} Workouts • {s_ok} Sleep • {r_ok} Recovery")
+
+with right:
+    if all_loaded():
+        st.session_state.show_uploads = False
+        if st.button("Change files"):
+            for k in ["workouts", "sleep", "recovery", "df_workouts", "df_sleep", "df_recovery"]:
+                st.session_state.pop(k, None)
+            st.session_state.show_uploads = True
+            st.rerun()
+    else:
+        st.session_state.show_uploads = True
+
+# uploaders (fully hidden once loaded)
+if st.session_state.show_uploads:
+    with st.expander("Upload panel", expanded=True):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            up_workouts = st.file_uploader("Workouts: clean_strong_workouts.csv", type=["csv"], key="workouts")
+        with c2:
+            up_sleep = st.file_uploader("Sleep: clean_sleep_data.csv", type=["csv"], key="sleep")
+        with c3:
+            up_recovery = st.file_uploader("Recovery: clean_recovery_data.csv", type=["csv"], key="recovery")
+
+        # IMPORTANT: persist + normalize immediately when uploads exist
+        if up_workouts is not None and st.session_state.get("df_workouts") is None:
+            st.session_state.df_workouts = normalize_workouts(load_df_from_upload(up_workouts))
+
+        if up_sleep is not None and st.session_state.get("df_sleep") is None:
+            st.session_state.df_sleep = normalize_sleep(load_df_from_upload(up_sleep))
+
+        if up_recovery is not None and st.session_state.get("df_recovery") is None:
+            st.session_state.df_recovery = normalize_recovery(load_df_from_upload(up_recovery))
+
+
+# Stop until all 3 are loaded (AFTER the persist step above)
+# ---------- downstream dataframes (always from session_state) ---------
+if not all_loaded():
+    st.info("Upload the 3 CSVs to unlock the dashboard.")
+    st.stop()
+# Use dataframes ONLY from session_state from here onward
+workouts = st.session_state.df_workouts
+sleep    = st.session_state.df_sleep
+recovery = st.session_state.df_recovery
 
 # -------------------------
 # Tabs
@@ -240,14 +287,17 @@ tab0, tab1, tab2, tab3, tab4 = st.tabs(["🏠 Home", "🏋️ Workouts", "😴 S
 # =========================
 # TAB 0 — HOME
 # =========================
-# ...existing code...
+
 with tab0:
     st.header("🏠 Weekly Snapshot")
 
     start_wk, end_wk = week_bounds()
     st.caption(f"Week: {start_wk.date()} → {end_wk.date()}")
-
-    # -------------------------
+    last_date_sleep = recovery['Date'].max()
+    st.caption(f"Sleep & Recovery last date updated: {last_date_sleep:%b %d, %Y}")   
+    last_date_gym = workouts["DATE"].max()
+    st.caption(f"Workouts Last Date: {last_date_gym:%b %d, %Y}")
+     # -------------------------
     # Weekly workouts snapshot
     # -------------------------
     if workouts is None:
