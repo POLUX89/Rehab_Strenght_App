@@ -3,7 +3,19 @@
 A personal analytics dashboard built with **Streamlit** to track **workouts, sleep, and recovery** over time, with a strong focus on **data integrity, transparency, and rehabilitation monitoring**.
 
 ---
+## 📸 Dashboard Preview
 
+### Home
+![Home1](assets/home.png)
+![Home2](assets/home.png)
+
+### Recovery
+![correlation](assets/recovery.png)
+
+### Sleep
+![sleep](assets/sleep.png)
+
+---
 ## 🎯 Why this project exists
 
 This app was created out of a **real personal need**.
