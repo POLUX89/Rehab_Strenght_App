@@ -11,9 +11,10 @@ import seaborn as sns
 from matplotlib.ticker import MultipleLocator
 import matplotlib.dates as mdates
 import io
+from datetime import date
 
 st.set_page_config(page_title="Rehab Strength Dashboard", layout="wide")
-st.title("🏋️‍♂️ Rehab Strength Dashboard V2.0", text_alignment="center")
+st.title("🏋️‍♂️ Rehab Strength Dashboard V2.0.2", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
 st.caption(f"Version changes:\n-Collapsed files upload\n-Data Integrity\n-Bugs")
 st.markdown("---")
@@ -290,13 +291,35 @@ tab0, tab1, tab2, tab3, tab4 = st.tabs(["🏠 Home", "🏋️ Workouts", "😴 S
 
 with tab0:
     st.header("🏠 Weekly Snapshot")
-
     start_wk, end_wk = week_bounds()
     st.caption(f"Week: {start_wk.date()} → {end_wk.date()}")
-    last_date_sleep = recovery['Date'].max()
-    st.caption(f"Sleep & Recovery last date updated: {last_date_sleep:%b %d, %Y}")   
-    last_date_gym = workouts["DATE"].max()
-    st.caption(f"Workouts Last Date: {last_date_gym:%b %d, %Y}")
+    # compute last dates safely
+    last_workouts = workouts["Date"].max() if "Date" in workouts.columns else workouts["DATE"].max()
+    last_sleep    = sleep["Date"].max() if sleep is not None and "Date" in sleep.columns else None
+    last_recovery = recovery["Date"].max() if recovery is not None and "Date" in recovery.columns else None
+
+    # freshness (days old)
+    today = pd.Timestamp.today().normalize()
+    def age_days(ts):
+        if ts is None or pd.isna(ts): 
+            return None
+        return int((today - pd.to_datetime(ts).normalize()).days)
+
+    a_w = age_days(last_workouts)
+    a_s = age_days(last_sleep)
+    a_r = age_days(last_recovery)
+
+    c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.2, 2.4])
+    c1.metric("Workouts last", f"{pd.to_datetime(last_workouts):%b %d}", f"{a_w}d old" if a_w is not None else "—")
+    c2.metric("Sleep last",    f"{pd.to_datetime(last_sleep):%b %d}" if last_sleep is not None else "—",
+            f"{a_s}d old" if a_s is not None else "—")
+    c3.metric("Recovery last", f"{pd.to_datetime(last_recovery):%b %d}" if last_recovery is not None else "—",
+            f"{a_r}d old" if a_r is not None else "—")
+
+    # optional: overall status label
+    overall_age = max([x for x in [a_w, a_s, a_r] if x is not None], default=None)
+    label = "🟢 Fresh" if (overall_age is not None and overall_age <= 1) else ("🟡 Slightly delayed" if (overall_age is not None and overall_age <= 3) else "🔴 Outdated")
+    c4.markdown(f"**Data status:** {label}")
      # -------------------------
     # Weekly workouts snapshot
     # -------------------------
@@ -350,8 +373,8 @@ with tab0:
                     "Last Recovery",
                     f"{last_sigmoid:.3f}",
                     recovery_zone(last_sigmoid))            
-            c4.metric("Last sleep score", f"{float(last_sleep_score):.0f}" if last_sleep_score is not None else "—")
-            c5.metric("Last HRV", f"{float(last_hrv):.0f}" if last_hrv is not None and str(last_hrv) != "nan" else "—")
+            c4.metric("Last sleep score %", f"{float(last_sleep_score):.0f}" if last_sleep_score is not None else "—")
+            c5.metric("Last HRV (ms)", f"{float(last_hrv):.0f}" if last_hrv is not None and str(last_hrv) != "nan" else "—")
 
     st.markdown("---")
 
