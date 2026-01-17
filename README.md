@@ -6,11 +6,11 @@ A personal analytics dashboard built with **Streamlit** to track **workouts, sle
 ## 📸 Dashboard Preview
 
 ### Home
-![Home1](assets/home.png)
-![Home2](assets/home.png)
+![Home1](assets/home1.png)
+![Home2](assets/home2.png)
 
 ### Recovery
-![correlation](assets/recovery.png)
+![correlation](assets/correlation.png)
 
 ### Sleep
 ![sleep](assets/sleep.png)
