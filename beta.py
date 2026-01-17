@@ -14,9 +14,11 @@ import io
 from datetime import date
 
 st.set_page_config(page_title="Rehab Strength Dashboard", layout="wide")
-st.title("🏋️‍♂️ Rehab Strength Dashboard V2.0.2", text_alignment="center")
+st.title("🏋️‍♂️ Rehab Strength Dashboard", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
 st.caption(f"Version changes:\n-Collapsed files upload\n-Data Integrity\n-Bugs")
+app_version = "V2.0.3"
+st.caption(f"App Version: {app_version}")
 st.markdown("---")
 
 # -------------------------
@@ -24,8 +26,8 @@ st.markdown("---")
 # -------------------------
 st.sidebar.header("⚙️ Settings")
 cva_dt = st.sidebar.date_input("CVA split date", value=datetime(2025, 5, 14))
-smooth_days = st.sidebar.slider("Smoothing window (days)", 3, 30, 7, 1)
-show_dark = st.sidebar.toggle("🌙 Dark mode", value=False)
+smooth_days = st.sidebar.slider("Smoothing window (days)", 3, 30, 15, 1)
+show_dark = st.sidebar.toggle("🌙 Dark mode", value=True)
 
 if show_dark:
     st.markdown(
@@ -391,8 +393,14 @@ with tab0:
                 st.info("Recovery CSV loaded but no usable rows.")
             else:
                 fig, ax = plt.subplots(figsize=(7,3))
+                sld1 = st.slider("Select days for moving average", 2, 11, 5, 1, width=250)
                 ax.plot(tmp["Date"], tmp["Sigmoid Recovery Score"], marker="o", markersize=3, color="green")
+                roll_avg_recovery = tmp["Sigmoid Recovery Score"].rolling(window=sld1).mean()
+                ax.plot(tmp["Date"], roll_avg_recovery, color="orange", linestyle="--", 
+                        alpha=0.4, label=f"MA {sld1}")
                 ax.set_xlabel("")
+                ax.set_ylim(0.2, 1)
+                ax.legend()
                 ax.tick_params(axis='x', rotation=45, labelsize=6)
                 ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
                 ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
@@ -413,8 +421,14 @@ with tab0:
                 st.info("Sleep CSV loaded but no usable rows.")
             else:
                 fig, ax = plt.subplots(figsize=(7,3))
+                sld2 = st.slider("Select days for moving average", 2, 11, 5, 1, key="sleep_ma_slider", width=250)
+                roll_avg_sleep = tmp[sleep_score_col].rolling(window=sld2).mean()
                 ax.plot(tmp["Date"], tmp[sleep_score_col], marker="o", markersize=3, color="purple")
+                ax.plot(tmp["Date"],roll_avg_sleep, color="orange", linestyle="--", 
+                        alpha=0.4, label=f"MA {sld2}")
                 ax.set_xlabel("")
+                ax.legend()
+                ax.set_ylim(50,100)
                 ax.set_ylabel(sleep_score_col)
                 ax.tick_params(axis='x', rotation=45, labelsize=6)
                 ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
