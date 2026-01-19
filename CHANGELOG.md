@@ -1,7 +1,11 @@
 # Changelog
+## [UNRELEASED]
+-Naps added to sleep tab
+-Sigmoid modified when nap is present on a day
 
-## [Unreleased]
-TBD
+## [2.0.4] -2026/01/18
+-Fixed data governance for better accuracy
+-Visuals improved
 
 ## [2.0.3] -2026/01/17
 - Sliders with moving average up to 11 days added for plot recovery and sleep charts in home tab
@@ -29,4 +33,4 @@ TBD
 
 ## [1.0.0]
 - Initial app creatioN
--
+

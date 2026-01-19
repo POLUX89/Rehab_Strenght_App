@@ -16,8 +16,7 @@ from datetime import date
 st.set_page_config(page_title="Rehab Strength Dashboard", layout="wide")
 st.title("🏋️‍♂️ Rehab Strength Dashboard", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
-st.caption(f"Version changes:\n-Collapsed files upload\n-Data Integrity\n-Bugs")
-app_version = "V2.0.3"
+app_version = "V2.0.4"
 st.caption(f"App Version: {app_version}")
 st.markdown("---")
 
@@ -295,7 +294,9 @@ with tab0:
     st.header("🏠 Weekly Snapshot")
     start_wk, end_wk = week_bounds()
     st.caption(f"Week: {start_wk.date()} → {end_wk.date()}")
+    st.markdown("---")
     # compute last dates safely
+    st.subheader("🔐 Data Integrity")
     last_workouts = workouts["Date"].max() if "Date" in workouts.columns else workouts["DATE"].max()
     last_sleep    = sleep["Date"].max() if sleep is not None and "Date" in sleep.columns else None
     last_recovery = recovery["Date"].max() if recovery is not None and "Date" in recovery.columns else None
@@ -393,11 +394,13 @@ with tab0:
                 st.info("Recovery CSV loaded but no usable rows.")
             else:
                 fig, ax = plt.subplots(figsize=(7,3))
+                tmp_avg = tmp["Sigmoid Recovery Score"].mean()
                 sld1 = st.slider("Select days for moving average", 2, 11, 5, 1, width=250)
                 ax.plot(tmp["Date"], tmp["Sigmoid Recovery Score"], marker="o", markersize=3, color="green")
                 roll_avg_recovery = tmp["Sigmoid Recovery Score"].rolling(window=sld1).mean()
                 ax.plot(tmp["Date"], roll_avg_recovery, color="orange", linestyle="--", 
-                        alpha=0.4, label=f"MA {sld1}")
+                        alpha=0.25, label=f"MA {sld1} days {roll_avg_recovery.iloc[-1]:.2f}")
+                ax.axhline(tmp_avg, color="blue", linestyle=":", alpha=0.6, label=f"Avg {tmp_avg:.2f}")
                 ax.set_xlabel("")
                 ax.set_ylim(0.2, 1)
                 ax.legend()
@@ -423,11 +426,13 @@ with tab0:
                 fig, ax = plt.subplots(figsize=(7,3))
                 sld2 = st.slider("Select days for moving average", 2, 11, 5, 1, key="sleep_ma_slider", width=250)
                 roll_avg_sleep = tmp[sleep_score_col].rolling(window=sld2).mean()
+                tmp_avg_sleep = tmp[sleep_score_col].mean()
+                ax.axhline(tmp_avg_sleep, color="blue", linestyle=":", alpha=0.6, label=f"Avg {tmp_avg_sleep:.0f}")
                 ax.plot(tmp["Date"], tmp[sleep_score_col], marker="o", markersize=3, color="purple")
                 ax.plot(tmp["Date"],roll_avg_sleep, color="orange", linestyle="--", 
-                        alpha=0.4, label=f"MA {sld2}")
+                        alpha=0.4, label=f"MA {sld2} days {roll_avg_sleep.iloc[-1]:.0f}")
                 ax.set_xlabel("")
-                ax.legend()
+                ax.legend(loc="lower left")
                 ax.set_ylim(50,100)
                 ax.set_ylabel(sleep_score_col)
                 ax.tick_params(axis='x', rotation=45, labelsize=6)
