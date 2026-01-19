@@ -1,5 +1,8 @@
 # Changelog
 
+## [Unreleased]
+TBD
+
 ## [2.0.3] -2026/01/17
 - Sliders with moving average up to 11 days added for plot recovery and sleep charts in home tab
 -Dark mode always ON
