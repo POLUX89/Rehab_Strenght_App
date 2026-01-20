@@ -1,5 +1,5 @@
 # Changelog
-## [2.1.0] - No date yet
+## [2.1.0] - 2026/01/20
 -Naps added to sleep tab
 -Home tab with nap metrics (average, nap days & nap frequency)
 -Naps classified based on the duration & the hour it was taken
