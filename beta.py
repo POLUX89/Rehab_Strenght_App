@@ -16,8 +16,8 @@ from datetime import date
 st.set_page_config(page_title="Rehab Strength Dashboard", layout="wide")
 st.title("🏋️‍♂️ Rehab Strength Dashboard", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
-app_version = "V2.0.1"
-st.caption(f"App Version: {app_version}")
+app_version = "V2.1.0"
+st.caption(f"App Version: {app_version} • Updated: {datetime.now():%Y-%m-%d %H:%M}")
 st.markdown("---")
 
 # -------------------------
@@ -165,9 +165,11 @@ def safe_minimal_last(df, date_col, value_col):
         return None
     return tmp[value_col].iloc[-1]
 def recovery_zone(x):
-    if x >= 0.7: return "🟢 Ready"
+    if x >= 0.7: return "🟢 ⬆️ Ready"
     if x >= 0.55: return "🟡 Moderate"
-    return "🔴 Low"
+    return "🔴 ⬇️ Low"
+
+
 
 # -------------------------
 # Uploads (hidden after loaded)
@@ -314,16 +316,18 @@ with tab0:
     a_r = age_days(last_recovery)
 
     c1, c2, c3, c4 = st.columns([1.2, 1.2, 1.2, 2.4])
-    c1.metric("Workouts last", f"{pd.to_datetime(last_workouts):%b %d}", f"{a_w}d old" if a_w is not None else "—")
+    c1.metric("Workouts last", f"{pd.to_datetime(last_workouts):%b %d}", f"{a_w}d old" if a_w is not None else "—",
+              delta_arrow="off")
     c2.metric("Sleep last",    f"{pd.to_datetime(last_sleep):%b %d}" if last_sleep is not None else "—",
-            f"{a_s}d old" if a_s is not None else "—")
+            f"{a_s}d old" if a_s is not None else "—", delta_arrow="off")
     c3.metric("Recovery last", f"{pd.to_datetime(last_recovery):%b %d}" if last_recovery is not None else "—",
-            f"{a_r}d old" if a_r is not None else "—")
+            f"{a_r}d old" if a_r is not None else "—", delta_arrow="off")
 
     # optional: overall status label
     overall_age = max([x for x in [a_w, a_s, a_r] if x is not None], default=None)
     label = "🟢 Fresh" if (overall_age is not None and overall_age <= 1) else ("🟡 Slightly delayed" if (overall_age is not None and overall_age <= 3) else "🔴 Outdated")
     c4.markdown(f"**Data status:** {label}")
+    st.markdown("---")
      # -------------------------
     # Weekly workouts snapshot
     # -------------------------
@@ -361,6 +365,7 @@ with tab0:
             # -------------------------
             # Latest values (sleep/recovery)
             # -------------------------
+            st.subheader("📊 Key Metrics")
             last_sigmoid = safe_minimal_last(recovery, "Date", "Sigmoid Recovery Score") if recovery is not None else None
             sleep_score_col = pick_col(recovery, ["Score", "Sleep Score", "SleepScore", "SCORE"])
             sleep_hrv_col   = pick_col(recovery, ["Overnight HRV", "Avg. HRV", "HRV", "7d Avg"])
@@ -376,12 +381,84 @@ with tab0:
                 c3.metric(
                     "Last Recovery",
                     f"{last_sigmoid:.3f}",
-                    recovery_zone(last_sigmoid))            
-            c4.metric("Last sleep score %", f"{float(last_sleep_score):.0f}" if last_sleep_score is not None else "—")
+                    recovery_zone(last_sigmoid), delta_arrow="off",
+                    delta_color="normal" if last_sigmoid is not None and last_sigmoid >= 0.7 else ("inverse" if last_sigmoid is not None and last_sigmoid >= 0.55 else "inverse"))            
+            c4.metric("Last sleep score %", f"{float(last_sleep_score):.0f}" if last_sleep_score is not None else "—", f"Excellent" if last_sleep_score is not None and last_sleep_score >= 85 else ("Fair" if last_sleep_score is not None and last_sleep_score >= 70 else "Poor"), delta_arrow="off")
             c5.metric("Last HRV (ms)", f"{float(last_hrv):.0f}" if last_hrv is not None and str(last_hrv) != "nan" else "—")
 
+            st.subheader("📈 Recent Trends")
+            last_sigmoid_nap = safe_minimal_last(recovery, "Date", "Sigmoid with Nap") if recovery is not None else None
+            last_delta = safe_minimal_last(recovery, "Date", "DELTA_NAP") if recovery is not None else None
+            last_nap_status = safe_minimal_last(recovery, "Date", "Nap_Status") if recovery is not None else None
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Recovery with Nap", f"{last_sigmoid_nap:.3f}" if last_sigmoid_nap is not None else "—",
+                      recovery_zone(last_sigmoid_nap), delta_arrow="off",
+                      delta_color="normal" if last_sigmoid_nap is not None and last_sigmoid_nap > last_sigmoid else ("inverse" if last_sigmoid_nap is not None and last_sigmoid_nap < last_sigmoid else "off"))
+            c2.metric("Δ Nap Effect", f"{last_delta:.3f}" if last_delta is not None else "—",
+                      f"{'⬆️ Positive' if last_delta is not None and last_delta > 0 else ('⬇️ Negative' if last_delta is not None and last_delta < 0 else 'No effect')}",
+                      delta_arrow="off", delta_color="normal" if last_delta is not None and last_delta > 0 else ("inverse" if last_delta is not None and last_delta < 0 else "off"))
+            c3.metric("Last Nap Status", last_nap_status if last_nap_status is not None else "No nap", delta_arrow="off")
     st.markdown("---")
 
+    #---------------------------
+    # Naps summary
+    #--------------------------
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.subheader("💤 Naps logged")
+        window = st.segmented_control(
+            "Select nap days window for avg:",
+            options=[7, 14, 30, 60, 90],
+            default=14,
+            key="nap_avg_window",
+            selection_mode="single", format_func=lambda x: f"{x} days")
+        sleep = sleep.sort_values("Date", ascending=True)
+        avg_nap = sleep.tail(window)["Asleep_Nap"].dropna().mean()
+        if pd.isna(avg_nap):
+            col1.metric(f"💤 Avg nap time (last {window} days)", " 0 minutes")
+            st.write("No Naps Logged")
+        else:
+            col1.metric(f"💤 Avg nap time (last {window} days)", f"{avg_nap:.1f} minutes")
+
+    with col2:
+        st.subheader("📅 Nap Days")
+        window2 = st.segmented_control(
+            "Select nap days window for avg:",
+            options=[7, 14, 30, 60, 90],
+            default=14,
+            key="nap_avg_window2",
+            selection_mode="single", format_func=lambda x: f"{x} days")
+        if pd.isna(avg_nap):
+            st.write("No Day Naps Logged")
+        else:
+            start_date = sleep["Date"].max() - pd.Timedelta(days=window2)
+            nap_data = sleep[sleep["Date"] >= start_date].dropna(subset=["Asleep_Nap"])
+            n_naps = nap_data.loc[nap_data["Asleep_Nap"].notna() & (nap_data["Asleep_Nap"] > 0)].shape[0]
+            col2.metric("Naps logged", f"{n_naps}")
+    with col3:
+        st.subheader("📈 Nap Frequency")
+        window3 = st.segmented_control(
+            "Select nap days window for avg:",
+            options=[7, 14, 30, 60, 90],
+            default=14,
+            key="nap_avg_window3",
+            selection_mode="single", format_func=lambda x: f"{x} days")
+        if pd.isna(avg_nap):
+            st.write("No Frequency Naps Logged")
+        else:
+            start_date = sleep["Date"].max() - pd.Timedelta(days=window3)
+            nap_data = sleep[sleep["Date"] >= start_date].dropna(subset=["Asleep_Nap"])
+            sleep_filtered = sleep[sleep["Date"] >= start_date]
+            freq_val = (nap_data[nap_data["Asleep_Nap"].notna() & (nap_data["Asleep_Nap"] > 0)].shape[0] / sleep_filtered.shape[0]) * 100
+            def freq_label(x):
+                if pd.isna(x):
+                    return "No data"
+                if x <= 15: return "🔴 Low"
+                if x <= 30: return "🟡 Moderate"
+                return "🟢 High"
+            col3.metric("Nap frequency", f"{freq_val:.1f} %", delta=freq_label(freq_val))
+            st.caption(f"Naps on {nap_data[nap_data['Asleep_Nap'].notna() & (nap_data['Asleep_Nap'] > 0)].shape[0]} of the last {window3} days")
+    st.markdown("---")
     # -------------------------
     # Quick trends (independent)
     # -------------------------
@@ -444,6 +521,11 @@ with tab0:
         else:
             st.info("No sleep data uploaded yet (or score column not detected).")
 
+    with st.expander("🛠 Debug"):
+        st.write("Workouts cols:", list(workouts.columns))
+        st.write("Sleep cols:", list(sleep.columns))
+        st.write("Recovery cols:", list(recovery.columns))
+    st.markdown("--")
 # =========================
 # TAB 1 — WORKOUTS
 # =========================
@@ -587,8 +669,9 @@ with tab2:
                 ax.set_ylabel("Hours")
                 sns.despine(ax=ax)
                 ax.grid(axis="y", alpha=0.25)
-                ax.tick_params(axis='x', rotation=45)
-                ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+                ax.tick_params(axis='x', rotation=45, labelsize=6)
+                ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+                ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
                 ax.set_axisbelow(True)
                 ax.legend()
                 st.pyplot(fig)
@@ -605,27 +688,45 @@ with tab2:
             if "Asleep_Nap" in sleep.columns:
                 with left:
                     st.subheader("💤 Nap Asleep (min)")
-                    date_max = st.date_input("Select end date for nap asleep plot", value=sleep["Date"].max(), key="nap_end_date")
-                    date_min = st.date_input("Select start date for nap asleep plot", value=sleep["Date"].min(), key="nap_start_date")
-                    filtered_nap = sleep[(sleep["Date"] <= pd.to_datetime(date_max)) &
-                                    (sleep["Date"] >= pd.to_datetime(date_min))].copy()
-                    plot_line(filtered_nap.dropna(subset=["Asleep_Nap"]), "Date", "Asleep_Nap",
-                            "Nap Asleep over time", "Minutes", 
-                            marker=None, color="teal", xlabel="",
-                            rotate_x=True, date_locator=mdates.MonthLocator(interval=1))
+                    slider_nap2 = st.slider("Select number of days to show for Nap Asleep plot", 60, 365, 365, 1, key="nap_asleep_days")
+                    recent_date = sleep["Date"].max()
+                    start_date = recent_date - pd.Timedelta(days=slider_nap2)
+                    filtered_nap = sleep[(sleep["Date"] >= start_date) & (sleep["Date"] <= recent_date)].copy()
+                    df_plot = filtered_nap.dropna(subset=["Asleep_Nap"])
+                    roll_avg_nap = df_plot["Asleep_Nap"].rolling(window=7, min_periods=1).mean()
+                    
+
+                    fig, ax = plt.subplots(figsize=(10, 4))
+                    ax.plot(df_plot["Date"], df_plot["Asleep_Nap"], color="teal", linewidth=1.5, label="Nap Asleep")
+                    ax.plot(df_plot["Date"], roll_avg_nap, marker="o", markersize=2, color="salmon", label=f"7-day MA", 
+                            linewidth=1, linestyle="--")
+                    ax.set_title("Nap Asleep over time")
+                    ax.set_ylabel("Minutes")
+                    ax.tick_params(axis='x', rotation=45)
+                    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
+                    ax.grid(axis="y", alpha=0.25)
+                    ax.set_axisbelow(True)
+                    ax.legend()
+                    sns.despine(ax=ax)
+                    st.pyplot(fig)
+
+                    # Monthly total naps 
+                # TBD
+
             else:
                 st.info("Column 'InBed_Nap' not found in sleep data.")
             with right:
-                st.subheader("🛏️ Nap InBed (min)")
+                st.subheader("🛏️ Nap Asleep (min)")
                 if "Asleep_Nap" in sleep.columns:
-                    slider_nap = st.slider("Select number of days to show for Nap InBed plot", 1, 365, 365, 1, key="nap_inbed_days")
+                    slider_nap = st.slider("Select number of days to show for Nap Asleep plot", 60, 365, 365, 1, key="nap_asleep")
                     recent_date = sleep["Date"].max()
                     start_date = recent_date - pd.Timedelta(days=slider_nap)
                     sleep_filtered = sleep[(sleep["Date"] >= start_date) & (sleep["Date"] <= recent_date)].copy()
                     df_nap = sleep_filtered.dropna(subset=["Asleep_Nap"])[["Date", "Asleep_Nap"]].copy()
                     fig, ax = plt.subplots(figsize=(10, 4))
                     ax.bar(df_nap["Date"], df_nap["Asleep_Nap"], color="teal", width=0.8)
-                    ax.set_title("Nap InBed over time")
+                    ax.set_title("Nap Asleep over time")
                     ax.set_ylabel("Minutes")
                     ax.tick_params(axis='x', rotation=45)
                     ax.xaxis.set_major_locator(mdates.DayLocator(interval=7))
@@ -637,11 +738,11 @@ with tab2:
 
                     # Monthly total nap inbed
                     sleep_monthly = sleep_filtered.set_index("Date").resample("M")["Asleep_Nap"].sum().reset_index()
-                    st.subheader("🗓️ Monthly Nap InBed Total (min)")
+                    st.subheader("🗓️ Monthly Nap Asleep Total (min)")
                     plot_line(sleep_monthly.dropna(subset=["Asleep_Nap"]), "Date", "Asleep_Nap",
-                            "Monthly Nap InBed Total", "Minutes", 
+                            "Monthly Nap Asleep Total", "Minutes", 
                             marker="o", color="coral", xlabel="",
-                            rotate_x=True, date_locator=mdates.MonthLocator(interval=1))
+                            rotate_x=True, date_locator=mdates.MonthLocator(interval=1), show_grid=True, date_formatter=mdates.DateFormatter('%b-%Y'))
                 else:
                     st.info("Column 'InBed_Nap' not found in sleep data.")
 

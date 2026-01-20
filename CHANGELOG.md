@@ -1,7 +1,10 @@
 # Changelog
-## [UNRELEASED] - No date yet
+## [2.1.0] - No date yet
 -Naps added to sleep tab
--Sigmoid modified when nap is present on a day
+-Home tab with nap metrics (average, nap days & nap frequency)
+-Naps classified based on the duration & the hour it was taken
+-Sigmoid recovery function modified by naps
+-Home tab with naps summary (sigmoid modified, delta & status)
 
 ## [2.0.4] -2026/01/18
 -Fixed data governance for better accuracy
