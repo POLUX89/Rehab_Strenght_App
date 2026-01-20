@@ -16,7 +16,7 @@ from datetime import date
 st.set_page_config(page_title="Rehab Strength Dashboard", layout="wide")
 st.title("🏋️‍♂️ Rehab Strength Dashboard", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
-app_version = "V2.0.4"
+app_version = "V2.0.1"
 st.caption(f"App Version: {app_version}")
 st.markdown("---")
 
@@ -106,9 +106,10 @@ def weekly_bucket(dt_series):
     return dt_series.dt.to_period("W-MON").dt.start_time
 
 def plot_line(dfx, x, y, title, ylabel, xlabel="Date", marker="o", markersize=4, color=None, 
-              show_grid=True, despine=True, rotate_x=False, date_locator=None, date_formatter=None):
+              show_grid=True, despine=True, rotate_x=False, date_locator=None, 
+              date_formatter=None, linewidth=1.5):
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.plot(dfx[x], dfx[y], marker=marker, markersize=markersize, color=color)
+    ax.plot(dfx[x], dfx[y], marker=marker, markersize=markersize, color=color, linewidth=linewidth)
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -598,8 +599,53 @@ with tab2:
                 plot_line(sleep.dropna(subset=["Wake Count"]), "Date", "Wake Count", 
                         "Wake Count over time", "Count", 
                         marker=None, color="purple", xlabel="",
-                        rotate_x=True, date_locator=mdates.MonthLocator(interval=2))
+                        rotate_x=True, date_locator=mdates.MonthLocator(interval=2), linewidth=0.7)
+            # Naps
+            left, right = st.columns(2)
+            if "Asleep_Nap" in sleep.columns:
+                with left:
+                    st.subheader("💤 Nap Asleep (min)")
+                    date_max = st.date_input("Select end date for nap asleep plot", value=sleep["Date"].max(), key="nap_end_date")
+                    date_min = st.date_input("Select start date for nap asleep plot", value=sleep["Date"].min(), key="nap_start_date")
+                    filtered_nap = sleep[(sleep["Date"] <= pd.to_datetime(date_max)) &
+                                    (sleep["Date"] >= pd.to_datetime(date_min))].copy()
+                    plot_line(filtered_nap.dropna(subset=["Asleep_Nap"]), "Date", "Asleep_Nap",
+                            "Nap Asleep over time", "Minutes", 
+                            marker=None, color="teal", xlabel="",
+                            rotate_x=True, date_locator=mdates.MonthLocator(interval=1))
+            else:
+                st.info("Column 'InBed_Nap' not found in sleep data.")
+            with right:
+                st.subheader("🛏️ Nap InBed (min)")
+                if "Asleep_Nap" in sleep.columns:
+                    slider_nap = st.slider("Select number of days to show for Nap InBed plot", 1, 365, 365, 1, key="nap_inbed_days")
+                    recent_date = sleep["Date"].max()
+                    start_date = recent_date - pd.Timedelta(days=slider_nap)
+                    sleep_filtered = sleep[(sleep["Date"] >= start_date) & (sleep["Date"] <= recent_date)].copy()
+                    df_nap = sleep_filtered.dropna(subset=["Asleep_Nap"])[["Date", "Asleep_Nap"]].copy()
+                    fig, ax = plt.subplots(figsize=(10, 4))
+                    ax.bar(df_nap["Date"], df_nap["Asleep_Nap"], color="teal", width=0.8)
+                    ax.set_title("Nap InBed over time")
+                    ax.set_ylabel("Minutes")
+                    ax.tick_params(axis='x', rotation=45)
+                    ax.xaxis.set_major_locator(mdates.DayLocator(interval=7))
+                    ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
+                    ax.grid(axis="y", alpha=0.25)
+                    ax.set_axisbelow(True)
+                    sns.despine(ax=ax)
+                    st.pyplot(fig)
 
+                    # Monthly total nap inbed
+                    sleep_monthly = sleep_filtered.set_index("Date").resample("M")["Asleep_Nap"].sum().reset_index()
+                    st.subheader("🗓️ Monthly Nap InBed Total (min)")
+                    plot_line(sleep_monthly.dropna(subset=["Asleep_Nap"]), "Date", "Asleep_Nap",
+                            "Monthly Nap InBed Total", "Minutes", 
+                            marker="o", color="coral", xlabel="",
+                            rotate_x=True, date_locator=mdates.MonthLocator(interval=1))
+                else:
+                    st.info("Column 'InBed_Nap' not found in sleep data.")
+
+ 
 # =========================
 # TAB 3 — RECOVERY
 # =========================
