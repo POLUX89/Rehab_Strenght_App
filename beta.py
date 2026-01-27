@@ -165,6 +165,8 @@ def safe_minimal_last(df, date_col, value_col):
         return None
     return tmp[value_col].iloc[-1]
 def recovery_zone(x):
+    if x is None or pd.isna(x):
+        return "No data"
     if x >= 0.7: return "🟢 ⬆️ Ready"
     if x >= 0.55: return "🟡 Moderate"
     return "🔴 ⬇️ Low"
