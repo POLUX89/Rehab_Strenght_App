@@ -3,6 +3,8 @@
 -Tag HRV metric on home tab as Excellent, Good or Bad
 -Time exercised metric on home tab with a goal of 4 hours
 -Recovery plot with nap on home tab
+-Home tab recovery charts with insights
+-Error handling with naps metrics
 
 ## [2.1.0] - 2026/01/20
 -Naps added to sleep tab

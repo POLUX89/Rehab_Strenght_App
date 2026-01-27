@@ -416,13 +416,20 @@ with tab0:
             default=14,
             key="nap_avg_window",
             selection_mode="single", format_func=lambda x: f"{x} days")
+        if window is None:
+            window = 14
+            st.markdown("Please select a number of days")
         sleep = sleep.sort_values("Date", ascending=True)
         avg_nap = sleep.tail(window)["Asleep_Nap"].dropna().mean()
-        if pd.isna(avg_nap):
-            col1.metric(f"💤 Avg nap time (last {window} days)", " 0 minutes")
-            st.write("No Naps Logged")
-        else:
-            col1.metric(f"💤 Avg nap time (last {window} days)", f"{avg_nap:.1f} minutes")
+        try:
+            if pd.isna(avg_nap):
+                col1.metric(f"💤 Avg nap time (last {window} days)", " 0 minutes")
+                st.write("No Naps Logged")
+            else:
+                col1.metric(f"💤 Avg nap time (last {window} days)", f"{avg_nap:.1f} minutes")
+        except Exception as e:
+            st.error(f"Error computing nap frequency: {e}")
+            st.error("Please select a number")
 
     with col2:
         st.subheader("📅 Nap Days")
@@ -432,13 +439,17 @@ with tab0:
             default=14,
             key="nap_avg_window2",
             selection_mode="single", format_func=lambda x: f"{x} days")
-        if pd.isna(avg_nap):
-            st.write("No Day Naps Logged")
-        else:
-            start_date = sleep["Date"].max() - pd.Timedelta(days=window2)
-            nap_data = sleep[sleep["Date"] >= start_date].dropna(subset=["Asleep_Nap"])
-            n_naps = nap_data.loc[nap_data["Asleep_Nap"].notna() & (nap_data["Asleep_Nap"] > 0)].shape[0]
-            col2.metric("Naps logged", f"{n_naps}")
+        try:
+            if pd.isna(avg_nap):
+                st.write("No Day Naps Logged")
+            else:
+                start_date = sleep["Date"].max() - pd.Timedelta(days=window2)
+                nap_data = sleep[sleep["Date"] >= start_date].dropna(subset=["Asleep_Nap"])
+                n_naps = nap_data.loc[nap_data["Asleep_Nap"].notna() & (nap_data["Asleep_Nap"] > 0)].shape[0]
+                col2.metric("Naps logged", f"{n_naps}")
+        except Exception as e:
+            st.error(f"Error computing nap frequency: {e}")
+            st.error("Please select a number")
     with col3:
         st.subheader("📈 Nap Frequency")
         window3 = st.segmented_control(
@@ -447,21 +458,25 @@ with tab0:
             default=14,
             key="nap_avg_window3",
             selection_mode="single", format_func=lambda x: f"{x} days")
-        if pd.isna(avg_nap):
-            st.write("No Frequency Naps Logged")
-        else:
-            start_date = sleep["Date"].max() - pd.Timedelta(days=window3)
-            nap_data = sleep[sleep["Date"] >= start_date].dropna(subset=["Asleep_Nap"])
-            sleep_filtered = sleep[sleep["Date"] >= start_date]
-            freq_val = (nap_data[nap_data["Asleep_Nap"].notna() & (nap_data["Asleep_Nap"] > 0)].shape[0] / sleep_filtered.shape[0]) * 100
-            def freq_label(x):
-                if pd.isna(x):
-                    return "No data"
-                if x <= 15: return "🔴 Low"
-                if x <= 30: return "🟡 Moderate"
-                return "🟢 High"
-            col3.metric("Nap frequency", f"{freq_val:.1f} %", delta=freq_label(freq_val))
-            st.caption(f"Naps on {nap_data[nap_data['Asleep_Nap'].notna() & (nap_data['Asleep_Nap'] > 0)].shape[0]} of the last {window3} days")
+        try:
+            if pd.isna(avg_nap):
+                st.write("No Frequency Naps Logged")
+            else:
+                start_date = sleep["Date"].max() - pd.Timedelta(days=window3)
+                nap_data = sleep[sleep["Date"] >= start_date].dropna(subset=["Asleep_Nap"])
+                sleep_filtered = sleep[sleep["Date"] >= start_date]
+                freq_val = (nap_data[nap_data["Asleep_Nap"].notna() & (nap_data["Asleep_Nap"] > 0)].shape[0] / sleep_filtered.shape[0]) * 100
+                def freq_label(x):
+                    if pd.isna(x):
+                        return "No data"
+                    if x <= 15: return "🔴 Low"
+                    if x <= 30: return "🟡 Moderate"
+                    return "🟢 High"
+                col3.metric("Nap frequency", f"{freq_val:.1f} %", delta=freq_label(freq_val))
+                st.caption(f"Naps on {nap_data[nap_data['Asleep_Nap'].notna() & (nap_data['Asleep_Nap'] > 0)].shape[0]} of the last {window3} days")
+        except Exception as e:
+            st.error(f"Error computing nap frequency: {e}")
+            st.error("Please select a number")
     st.markdown("---")
     # -------------------------
     # Quick trends (independent)
@@ -485,7 +500,7 @@ with tab0:
                 ax.axhline(tmp_avg, color="blue", linestyle=":", alpha=0.6, label=f"Avg {tmp_avg:.2f}")
                 ax.set_xlabel("")
                 ax.set_ylim(0, 1)
-                ax.legend()
+                ax.legend(loc="lower left")
                 ax.tick_params(axis='x', rotation=45, labelsize=6)
                 ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
                 ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
@@ -499,6 +514,7 @@ with tab0:
         st.subheader("🧠 Recovery (last 14 days) with Nap")
         if recovery is not None and {"Date", "Sigmoid with Nap"}.issubset(recovery.columns):
             tmp2 = recovery.dropna(subset=["Date", "Sigmoid with Nap"]).sort_values("Date").tail(14)
+            last_recovery_nap = tmp2["Sigmoid with Nap"].iloc[-1] if not tmp2.empty else None
             if tmp2.empty:
                 st.info("Recovery CSV loaded but no usable rows.")
             else:
@@ -512,7 +528,7 @@ with tab0:
                 ax.axhline(tmp2_avg, color="blue", linestyle=":", alpha=0.6, label=f"Avg {tmp2_avg:.2f}")
                 ax.set_xlabel("")
                 ax.set_ylim(0,1)
-                ax.legend()
+                ax.legend(loc="lower left")
                 ax.tick_params(axis='x', rotation=45, labelsize=6)
                 ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%d'))
                 ax.xaxis.set_major_locator(mdates.DayLocator(interval=1))
@@ -521,7 +537,25 @@ with tab0:
                 st.pyplot(fig)
         else:
             st.info("No recovery data uploaded yet.")
+    with st.expander("Recovery Insights", icon="🧠",expanded=False):
+        vol_no_nap = recovery["Sigmoid Recovery Score"].tail(14).std()
+        vol_nap = recovery["Sigmoid with Nap"].tail(14).std()
+        delta_window = st.slider("Select days window for Δ average", 2, 14, 7, 1, key="delta_avg_window", width=200)
+        recovery_naps = recovery.dropna(subset=["Date", "DELTA_NAP"]).sort_values("Date").tail(delta_window)
+        avg_delta = recovery_naps["DELTA_NAP"].mean() if not recovery_naps.empty else None
+        st.write(f"Average Δ {delta_window} days: {avg_delta:.2f}" if avg_delta is not None else "Average Δ not available")
+        if last_sigmoid is not None and last_sigmoid >= tmp_avg:
+            st.write(f"14-day Last Recovery without Nap: {last_sigmoid:.2f} above Avg")
+        else:
+            st.write(f"14-day Last Recovery without Nap: {last_sigmoid_nap:.2f} below Avg")
+        if last_recovery_nap is not None and last_recovery_nap >=tmp2_avg:
+            st.write(f"14-day Last Recovery with Nap: {last_recovery_nap:.2f} above Avg")
+        else:
+            st.write(f"14-day Last Recovery with Nap: {last_recovery_nap:.2f} below Avg")
+        st.write(f"Volatility (STD) without Nap (14 days): {vol_no_nap:.4f}")
+        st.write(f"Volatility (STD) with Nap (14 days): {vol_nap:.4f}")
 
+    st.caption("Note: Recovery with Nap may be higher than without nap depending on nap effect.", help="Nap effect is computed based on the duration of the nap and the hour it was taken. A positive nap effect indicates that the nap contributed positively to recovery, while a negative effect suggests it may have disrupted sleep patterns.")
     st.markdown("---")
     st.subheader("😴 Sleep score (last 14 days)")
     sleep_score_col = pick_col(recovery, ["Score", "Sleep Score", "SleepScore", "SCORE", "Score.1", "Score.2"]) if recovery is not None else None
