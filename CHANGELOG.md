@@ -1,4 +1,11 @@
 # Changelog
+## [2.2.0] - 2026/01/xx
+-Stats tab
+-Location estimates metrics
+-Histogram & boxplots for features
+-Shapiro Wilk test for normality of distributions
+-Outliers detection IQR & z-score modified
+
 ## [2.1.0] - 2026/01/20
 -Naps added to sleep tab
 -Home tab with nap metrics (average, nap days & nap frequency)
