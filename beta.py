@@ -318,7 +318,7 @@ recovery = st.session_state.df_recovery
 # -------------------------
 # Tabs
 # -------------------------
-tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 Home", "🏋️ Workouts", "😴 Sleep", "🧠 Recovery", "🔗 Correlations", "⚙️📉 Stats & Models"])
+tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 Home", "🏋️ Workouts", "😴 Sleep", "🧠 Recovery", "🔗 Correlations", "📉 Stats"])
 # =========================
 # TAB 0 — HOME
 # =========================
@@ -971,7 +971,7 @@ with tab5:
     recovery_exercise_done = recovery_exercise[recovery_exercise["Exercise_Done"] == 1].copy()
     recovery_exercise_notdone = recovery_exercise[recovery_exercise["Exercise_Done"] == 0].copy()
     #-----------------------------
-    st.header("⚙️📉 Stats & Models")
+    st.header("📉 Stats")
     st.subheader("📊 Recovery on Exercise vs Non-Exercise Days")
     allowed = sorted(["InBed hrs", "Asleep hrs", "Awake", "REM hrs", "Light hrs", "Deep hrs", "Fall Asleep", 
             "Overnight HRV", "Stress", "RHR", "Score"])
@@ -980,11 +980,13 @@ with tab5:
     mean_val = picked_col.mean()
     median_val = picked_col.median()
     std_val = picked_col.std()
+    trim_mean_val = stats.trim_mean(picked_col.dropna(), 0.1) if picked_col is not None else None
     n = picked_col.dropna().shape[0] 
     trim_mean = stats.trim_mean(picked_col.dropna(), 0.1) if picked_col is not None else None
-    with st.expander("🎯 Location Metrics", expanded=False):
-        st.subheader("🎯 Location Metrics")
-        c1, c2, c3, c4, c5 = st.columns(5)
+    cv = (std_val / mean_val)
+    with st.expander("🎯 Location & Variability Metrics", expanded=False):
+        st.subheader("🎯 Location & Variability Metrics")
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         series_for_chart = picked_col.dropna().astype(float).tail(30).tolist() if picked_col is not None else []
         c1.metric("Median", f"{median_val:.2f}" if median_val is not None else "—")
         c2.metric(
@@ -994,14 +996,20 @@ with tab5:
             chart_type="line")
         c3.metric("Std Dev", f"{std_val:.2f}" if std_val is not None else "—")
         c4.metric("Trimmed Mean (10%)", f"{trim_mean:.2f}" if trim_mean is not None else "—")
-        c5.metric("Sample (n)", f"{n}" if n is not None else "—")
+        c5.metric("Sample (n)", "Sufficient" if n >= 30 else "Insufficient", 
+                  delta=n, delta_color="normal" if n >= 30 else "inverse",
+                  help="n >=30 is considered sufficient for Central Limit Theorem.", delta_arrow="off")
+        c6.metric("Coef of Var (CV)", "Good" if cv is not None and cv < 0.1 else "Acceptable" if cv is not None and cv < 0.2 else "High", 
+                  delta=f"{round(cv*100, 2)} %",delta_color="normal" if cv is not None and cv < 0.1 else "orange" if cv is not None and cv < 0.2 else "inverse" if cv is not None else None,
+                  help="CV <10% is considered good stability; 10-20% acceptable; >20% high variability.")
+    # Normality test
 
     with st.expander("🔍 Normality Test for Recovery", expanded=False):
         st.subheader("🔍 Normality Test for Recovery")
         col_pvalue, col_inter = normality_test(picked_col) if picked_col is not None else (None, None)
         # Interpretation
         if col_pvalue is not None and col_pvalue > 0.05:
-            st.info(f"{check_metric} appears to be normally distributed (p={col_pvalue:.3f}). You can use parametric tests.")
+            st.success(f"{check_metric} appears to be normally distributed (p={col_pvalue:.3f}). You can use parametric tests.")
         elif col_pvalue is not None and col_pvalue <= 0.05:
             st.info(f"{check_metric} does not appear to be normally distributed (p={col_pvalue:.3f}). You may want to use non-parametric tests.")
         else:
@@ -1011,9 +1019,10 @@ with tab5:
         with c1:
             #Plot histogram
             fig, ax = plt.subplots(figsize=(7,3))
-            sns.histplot(picked_col.dropna(), kde=False, ax=ax, stat="probability")
+            sns.histplot(picked_col.dropna(), kde=True, ax=ax, stat="probability")
             ax.axvline(mean_val, color="blue", linestyle="--", label=f"Mean: {mean_val:.2f}")
             ax.axvline(median_val, color="red", linestyle=":", label=f"Median: {median_val:.2f}")
+            ax.axvline(trim_mean_val, color="green", linestyle="-.", label=f"Trimmed Mean: {trim_mean_val:.2f}")
             ax.axvspan(mean_val - std_val, mean_val + std_val, color="yellow", alpha=0.15, label=f"±1 Std Dev: {std_val:.2f}")
             ax.set_title(f"Histogram of {check_metric}", fontsize=14, fontweight="bold", pad=15)
             ax.legend(loc="best", fontsize=8)
@@ -1023,22 +1032,38 @@ with tab5:
             st.pyplot(fig)
         with c2:
             fig, ax = plt.subplots(figsize=(7,3))
-            sns.boxplot(y=picked_col.dropna(), ax=ax)
+            sns.boxplot(y=picked_col.dropna(), ax=ax, width=0.3, fliersize=3, flierprops={"markerfacecolor": "red", "marker": "o"})
             sns.stripplot(y=picked_col.dropna(), ax=ax, color="lightblue", size=4, jitter=True, alpha=0.15)
             ax.set_title(f"Boxplot of {check_metric}", fontsize=14, fontweight="bold", pad=15)
             ax.set_xlabel(check_metric)
             sns.despine(ax=ax)
             st.pyplot(fig)
+        fig, ax = plt.subplots(figsize=(10, 3))
+        sns.lineplot(data=recovery, x="Date", y=check_metric, ax=ax, linewidth=1)
+        ax.axhline(mean_val, color="blue", linestyle="--", label=f"Mean: {mean_val:.2f}")
+        ax.axhline(median_val, color="red", linestyle=":", label=f"Median: {median_val:.2f}")
+        ax.axhline(trim_mean_val, color="green", linestyle="-.", label=f"Trimmed Mean: {trim_mean_val:.2f}")
+        ax.axhspan(mean_val - std_val, mean_val + std_val, color="yellow", alpha=0.05, label=f"±1 Std Dev: {std_val:.2f}")
+        ax.legend(loc="best", fontsize=5)
+        ax.set_title(f"Time Series of {check_metric}", fontsize=14, fontweight="bold", pad=15)
+        ax.set_xlabel("")
+        ax.set_ylabel(check_metric)
+        sns.despine(ax=ax)
+        ax.tick_params(axis='x', rotation=45)
+        st.pyplot(fig)
     # Outliers detection
     with st.expander("🧪 Outliers Detection", expanded=False):
         st.subheader("🧪 Outliers Detection")
         outliers_iqr = outlier_dectection_iqr(picked_col) if picked_col is not None else pd.Series(dtype=float)
-        st.info(f"Detected {len(outliers_iqr)} outlier(s) in {check_metric} using IQR method.",
-                icon="ℹ️")
-
         outliers_z = outlier_detection_zscore_modified(picked_col, threshold=3)
-        st.info(f"Detected {len(outliers_z)} outlier(s) in {check_metric} using Modified Z-Score method.",
-                icon="🚨")
+
+        if len(outliers_iqr) == 0 and len(outliers_z) == 0: 
+            st.success(f"No outliers detected in {check_metric} using IQR method and Modified Z-Score method.", icon="✅")
+        else:
+            st.info(f"Detected {len(outliers_iqr)} outlier(s) in {check_metric} using IQR method.",
+                    icon="ℹ️")
+            st.info(f"Detected {len(outliers_z)} outlier(s) in {check_metric} using Modified Z-Score method.",
+                    icon="🚨")
     # Hypothesis testing
 
     with st.expander("🛠️ Tests with rest days and exercise days", expanded=False):
@@ -1051,8 +1076,9 @@ with tab5:
             choice = st.segmented_control(
                 "Select test to perform:",
                 options=options)
+            st.warning("T Test are about means. They test whether the mean is different from the population mean (One-sample test) or whether the means of the groups are significantly different (Independent test).", icon="⚠️")
             if choice == "One-sample t-test":
-                popmean = st.number_input("Enter population mean to compare against:", value=float(0) if mean_val is not None and not pd.isna(mean_val) else 0.0)
+                popmean = st.number_input("Enter population mean to compare against:", value=float(mean_val) if mean_val is not None and not pd.isna(mean_val) else 0.0)
                 alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
                 ttest_res = stats.ttest_1samp(group1, popmean, alternative=alternative)
                 button_run = st.button("Run One-sample t-test")
@@ -1076,11 +1102,11 @@ with tab5:
                         st.info("Fail to reject the null hypothesis at α=0.05 level.")
         elif col_pvalue <= 0.05:
             st.write("Since the data does not appear to be normally distributed, you can use non-parametric tests such as the Wilcoxon signed-rank test or the Mann-Whitney U test for further analysis.")
-            options = ["Pearson Correlation", "Mann-Whitney U test"]
+            options = ["Spearman Correlation", "Mann-Whitney U test"]
             choice = st.segmented_control(
                 "Select test to perform:",
                 options=options)
-            if choice == "Pearson Correlation":
+            if choice == "Spearman Correlation":
                 col2 = st.selectbox("Select another metric to correlate with:", allowed, index=allowed.index("Stress"))
                 # Align pairs by dropping rows where either metric is NaN
                 df_pair = recovery[[check_metric, col2]].dropna()
@@ -1108,29 +1134,48 @@ with tab5:
             elif choice == "Mann-Whitney U test":
                 group1 = recovery_exercise_done[check_metric].dropna()
                 group2 = recovery_exercise_notdone[check_metric].dropna()
-                st.info(f"Group 1 is {check_metric} with exercise ({group1.shape[0]} samples)")
-                st.info(f"Group 2 is {check_metric} on rest days ({group2.shape[0]} samples)")
-                alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
-                button_run2 = st.button("Run Mann-Whitney U test")
-                st.write("Exercise median:", float(group1.median()))
-                st.write("Rest median:", float(group2.median()))
-                st.write("Δ median (ex - rest):", float(group1.median() - group2.median()))
-                if button_run2:
-                    stats_mwu, pvalue_mwu = stats.mannwhitneyu(group1, group2, alternative=alternative)
-                    st.write(f"U statistic: ", stats_mwu)
-                    st.write(f"p-value: ", pvalue_mwu)
-                    if pvalue_mwu < 0.05:
-                        st.success("Reject the null hypothesis at α=0.05 level.")
-                    else:
-                        st.info("Fail to reject the null hypothesis at α=0.05 level.")
-                    u = stats_mwu
-                    n1 = len(group1)
-                    n2 = len(group2)
-                    # Calculate effect size
-                    CLES = u / (n1 * n2)
-                    st.write(f"Common Language Effect Size (CLES):", round(CLES, 2))
-                    st.write(f"{CLES*100:.1f}% chance that a randomly selected exercise day has a higher "
-                             f"{check_metric} than a randomly selected rest day.")
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.warning("Mann-Whitney U is about distributions, not means. It tests whether values from one group tend to be higher than the other.", icon="⚠️")
+                    st.info(f"Group 1 is {check_metric} with exercise ({group1.shape[0]} samples)")
+                    st.info(f"Group 2 is {check_metric} on rest days ({group2.shape[0]} samples)")
+                    st.write("Exercise median:", float(group1.median()))
+                    st.write("Rest median:", float(group2.median()))
+                    st.write("Δ median (ex - rest):", float(group1.median() - group2.median()))
+                    alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
+                    button_run2 = st.button("Run Mann-Whitney U test")
+                    if button_run2:
+                        stats_mwu, pvalue_mwu = stats.mannwhitneyu(group1, group2, alternative=alternative)
+                        st.write(f"U statistic: ", stats_mwu)
+                        st.write(f"p-value: ", pvalue_mwu)
+                        if pvalue_mwu < 0.05:
+                            st.success("Reject the null hypothesis at α=0.05 level.")
+                        else:
+                            st.info("Fail to reject the null hypothesis at α=0.05 level.")
+                        u = stats_mwu
+                        n1 = len(group1)
+                        n2 = len(group2)
+                        # Calculate effect size
+                        CLES = u / (n1 * n2)
+                        st.write(f"Common Language Effect Size (CLES):", round(CLES, 2))
+                        if CLES > 0.5:
+                            st.write(f"{CLES*100:.1f}% chance that a randomly selected exercise day has a higher "
+                                f"{check_metric} than a randomly selected rest day.")
+                        elif CLES < 0.5:
+                            st.write(f"{(1-CLES)*100:.1f}% chance that a randomly selected rest day has a higher "
+                                f"{check_metric} than a randomly selected exercise day.")
+                        else:
+                            st.write("No difference between exercise and rest days in " + check_metric + ".")
+                with c2:
+                    fig, ax = plt.subplots(figsize=(7,5))
+                    sns.kdeplot(group1, color="lightblue", label="Exercise Days", ax=ax)
+                    sns.kdeplot(group2, color="salmon", label="Rest Days", ax=ax)
+                    sns.despine(ax=ax)
+                    plt.title(f"Distribution of {check_metric}")
+                    plt.xlabel(check_metric)
+                    plt.ylabel("Density")
+                    plt.legend(loc="best")
+                    st.pyplot(fig)
 
 st.caption(
     "Tip: If you only train 3–4 days/week, use weekly aggregation (Volume / mean Recovery / mean Sleep) "

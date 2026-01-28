@@ -1,10 +1,12 @@
 # Changelog
-## [2.2.0] - 2026/01/xx
+## [2.2.1] - 2026/01/28
 -Stats tab
 -Location estimates metrics
--Histogram & boxplots for features
+-CV metric
+-Histogram, boxplots & lineplots for features
 -Shapiro Wilk test for normality of distributions
 -Outliers detection IQR & z-score modified
+-Hypothesis testinf using ttest for normal distributions and mwu/correlation for non normal distributions
 
 ## [2.1.1] -2026/01/28
 -Tag HRV metric on home tab as Excellent, Good or Bad
