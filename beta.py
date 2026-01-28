@@ -1050,7 +1050,8 @@ with tab5:
                 st.write("Δ median (ex - rest):", float(group1.median() - group2.median()))
                 if button_run2:
                     stats_mwu, pvalue_mwu = stats.mannwhitneyu(group1, group2, alternative=alternative)
-                    st.write(f"U statistic: {stats_mwu:.3f}, p-value: {pvalue_mwu:.3f}")
+                    st.write(f"U statistic: ", stats_mwu)
+                    st.write(f"p-value: ", pvalue_mwu)
                     if pvalue_mwu < 0.05:
                         st.success("Reject the null hypothesis at α=0.05 level.")
                     else:
@@ -1061,6 +1062,8 @@ with tab5:
                     # Calculate effect size
                     CLES = u / (n1 * n2)
                     st.write(f"Common Language Effect Size (CLES):", round(CLES, 2))
+                    st.write(f"{CLES*100:.1f}% chance that a randomly selected exercise day has a higher "
+                             f"{check_metric} than a randomly selected rest day.")
 
 st.caption(
     "Tip: If you only train 3–4 days/week, use weekly aggregation (Volume / mean Recovery / mean Sleep) "
