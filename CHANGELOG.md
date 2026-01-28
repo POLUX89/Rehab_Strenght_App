@@ -1,5 +1,5 @@
 # Changelog
-## [2.1.1] -2026/01/26
+## [2.1.1] -2026/01/28
 -Tag HRV metric on home tab as Excellent, Good or Bad
 -Time exercised metric on home tab with a goal of 4 hours
 -Recovery plot with nap on home tab
