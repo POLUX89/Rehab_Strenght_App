@@ -4,5 +4,6 @@ numpy==2.4.1
 matplotlib==3.10.8
 seaborn==0.13.2
 PyPDF2==3.0.1
-scipy == 1.17.0
-statsmodels == 0.14.6
+scipy==1.17.0
+statsmodels==0.14.6
+scikit-learn==1.8.0

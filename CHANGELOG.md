@@ -1,4 +1,7 @@
 # Changelog
+## [2.3.0] -2026/xx/xx
+- OLS linear regression
+
 ## [2.2.0] - 2026/01/28
 -Stats tab
 -Location estimates metrics

@@ -14,11 +14,13 @@ import io
 from datetime import date
 import statsmodels.api as sm
 import scipy.stats as stats
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+from sklearn.model_selection import train_test_split
 
 st.set_page_config(page_title="Rehab Strength APP", layout="wide")
 st.title("🏋️‍♂️ Rehab Strength APP", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
-app_version = "V2.2.0"
+app_version = "V2.3.0"
 st.caption(f"App Version: {app_version} • Updated: {datetime.now():%Y-%m-%d %H:%M}")
 st.markdown("---")
 
@@ -104,8 +106,8 @@ def daily_ma(series, window_days):
     return series.rolling(window=window_days, min_periods=max(1, window_days//2)).mean()
 
 def weekly_bucket(dt_series):
-    # Monday-start week
-    return dt_series.dt.to_period("W-MON").dt.start_time
+    dt = pd.to_datetime(dt_series, errors="coerce")  # coerce bad strings to NaT
+    return dt.dt.to_period("W-MON").dt.start_time
 
 def plot_line(dfx, x, y, title, ylabel, xlabel="Date", marker="o", markersize=4, color=None, 
               show_grid=True, despine=True, rotate_x=False, date_locator=None, 
@@ -318,7 +320,7 @@ recovery = st.session_state.df_recovery
 # -------------------------
 # Tabs
 # -------------------------
-tab0, tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 Home", "🏋️ Workouts", "😴 Sleep", "🧠 Recovery", "🔗 Correlations", "📉 Stats"])
+tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Home", "🏋️ Workouts", "😴 Sleep", "🧠 Recovery", "🔗 Correlations", "📉 Stats", "⚙️ Models"])
 # =========================
 # TAB 0 — HOME
 # =========================
@@ -960,6 +962,7 @@ with tab4:
 
 with tab5:
     # Data agg necessary for hypothesis testing
+    recovery["Date"] = pd.to_datetime(recovery["Date"])  # Convert to datetime
     workouts_daily = workouts.groupby("Date", as_index=False).agg({
         "DURATION_MIN": "max",
         "WEIGHT_LBS": "max",
@@ -1176,7 +1179,74 @@ with tab5:
                     plt.ylabel("Density")
                     plt.legend(loc="best")
                     st.pyplot(fig)
+with tab6:
+    st.header("⚙️ Models")
+    recovery = st.session_state.df_recovery.copy()
+    recovery["Date"] = pd.to_datetime(recovery["Date"], errors="coerce")  # Convert to datetime
+    features = ["Stress", "Asleep hrs", "REM hrs", "Light hrs", "Deep hrs", "Awake" ]
+    df_model = recovery[["Date"] + features + ["Score"]].dropna()
+    with st.expander("📐 OLS Linear Regression: Score", expanded=False):
+        st.write("Available features:", [f for f in features if f in recovery.columns])
 
+        train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
+        st.write(f"Training samples: {train_lin.shape[0]}, Test samples: {test_lin.shape[0]}")
+        X = sm.add_constant(train_lin[features])
+        y = train_lin["Score"]
+        model_linear = sm.OLS(y, X).fit(cov_type='HC3')
+
+        X_test = sm.add_constant(test_lin[features])
+        y_test = test_lin["Score"]
+        y_pred_linear = model_linear.predict(X_test)
+
+        r2_train_linear = model_linear.rsquared
+        r2_test_linear = r2_score(y_test, y_pred_linear)
+        mse_train_linear = mean_squared_error(y, model_linear.fittedvalues)
+        mse_test_linear = mean_squared_error(y_test, y_pred_linear)
+        mae_train_linear = mean_absolute_error(y, model_linear.fittedvalues)
+        mae_test_linear = mean_absolute_error(y_test, y_pred_linear)
+        rmse_train_linear = np.sqrt(mse_train_linear)
+        rmse_test_linear = np.sqrt(mse_test_linear)
+      
+        st.subheader("📈 Train Set Performance")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Train R²", f"{r2_train_linear:.3f}")
+        with c2:
+            st.metric("MSE", f"{mse_train_linear:.3f}")
+        with c3:
+            st.metric("MAE", f"{mae_train_linear:.3f}")
+        with c4:
+            st.metric("RMSE", f"{rmse_train_linear:.3f}")
+
+        st.subheader("📉 Test Set Performance")
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Test R²", f"{r2_test_linear:.3f}")
+        with c2:
+            st.metric("MSE", f"{mse_test_linear:.3f}")
+        with c3:
+            st.metric("MAE", f"{mae_test_linear:.3f}")
+        with c4:
+            st.metric("RMSE", f"{rmse_test_linear:.3f}")
+        
+        df_model["Predicted_Score_Linear"] = model_linear.predict(sm.add_constant(df_model[features]))
+        st.dataframe(df_model[["Date", "Score", "Predicted_Score_Linear"]].sort_values("Date"))
+
+        with st.expander("ℹ️ Model Summary", expanded=False):
+            c1, c2 = st.columns(2)
+            with c1:
+                st.text(model_linear.summary().as_text())
+            with c2:
+                fig, ax = plt.subplots(figsize=(10,5))
+                sns.lineplot(data=df_model, x="Date", y="Score", label="Actual", ax=ax)
+                sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear", label="Predicted", ax=ax, linestyle="--", linewidth=1)
+                ax.set_title("Actual vs Predicted Recovery Score (Linear Regression)")
+                ax.set_xlabel("")
+                ax.set_ylabel("Recovery Score")
+                ax.tick_params(axis='x', rotation=45)
+                ax.legend()
+                sns.despine(ax=ax)
+                st.pyplot(fig)
 st.caption(
     "Tip: If you only train 3–4 days/week, use weekly aggregation (Volume / mean Recovery / mean Sleep) "
     "to avoid the mismatch between daily sleep and training frequency."
