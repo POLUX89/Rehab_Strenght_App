@@ -1,6 +1,11 @@
 # Changelog
 ## [2.3.0] -2026/xx/xx
-- OLS linear regression
+-Toggle button to change between OLS and Logit
+- OLS linear regression training below 150 samples
+- OLS frozen at 150 samples
+- OLS for deployment after 150 samples
+- Deployment and training params
+- OLS analysis (metrics, residuals)
 
 ## [2.2.0] - 2026/01/28
 -Stats tab

@@ -16,6 +16,7 @@ import statsmodels.api as sm
 import scipy.stats as stats
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix, classification_report, roc_curve
 
 st.set_page_config(page_title="Rehab Strength APP", layout="wide")
 st.title("🏋️‍♂️ Rehab Strength APP", text_alignment="center")
@@ -203,6 +204,9 @@ def outlier_detection_zscore_modified(series, threshold=3):
     modified_z_scores = 0.6745 * (series - series.median()) / mad
     outliers = series[np.abs(modified_z_scores) > threshold]
     return outliers
+
+def sleep_classifier(q):
+    return 1 if q in ["Good", "Excellent"] else 0
 # -------------------------
 # Uploads (hidden after loaded)
 # -------------------------
@@ -1183,70 +1187,364 @@ with tab6:
     st.header("⚙️ Models")
     recovery = st.session_state.df_recovery.copy()
     recovery["Date"] = pd.to_datetime(recovery["Date"], errors="coerce")  # Convert to datetime
-    features = ["Stress", "Asleep hrs", "REM hrs", "Light hrs", "Deep hrs", "Awake" ]
-    df_model = recovery[["Date"] + features + ["Score"]].dropna()
-    with st.expander("📐 OLS Linear Regression: Score", expanded=False):
-        st.write("Available features:", [f for f in features if f in recovery.columns])
+    predictors = ["Stress_prev_day", "Awake", "Asleep hrs"]
+    df_model = recovery[["Date"] + predictors + ["Score"]].dropna().copy()
+    df_model = df_model.sort_values("Date")
+    st.write("Modeling on: ", df_model.shape[0], "samples with no missing values in selected features and Score.")
+    toggle_model = st.toggle("Linear Regression OR Logistic Regression", True, key="model_toggle")
 
-        train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
-        st.write(f"Training samples: {train_lin.shape[0]}, Test samples: {test_lin.shape[0]}")
-        X = sm.add_constant(train_lin[features])
-        y = train_lin["Score"]
-        model_linear = sm.OLS(y, X).fit(cov_type='HC3')
+    if toggle_model:    #Linear Regression Selected
+            #------------------------------FROZEN MODEL CONDITIONALS-----------------------------
+        if "model_frozen" not in st.session_state:
+            st.session_state.model_frozen = None
+        if "freeze_date" not in st.session_state:
+            st.session_state.freeze_date = None
+        if "freeze_predictors" not in st.session_state:
+            st.session_state.freeze_predictors = None
+        n = df_model.shape[0]
+        if st.session_state.model_frozen is not None:
+            if st.button("Reset frozen model (session)"):
+                st.session_state.model_frozen = None
+                st.session_state.freeze_date = None
+                st.session_state.freeze_predictors = None
+                st.rerun()
+        #------------------------------OLS LINEAR REGRESSION TRAINING PHASE-----------------------------
+        if (st.session_state.model_frozen is None) and (n < 150):
+            st.warning("MODEL ON TRAINING PHASE YET",icon="spinner")
+            with st.expander("📐 OLS Linear Regression: Insights", expanded=False):
+                st.write("Used for prediction:", [f for f in predictors if f in df_model.columns])
 
-        X_test = sm.add_constant(test_lin[features])
-        y_test = test_lin["Score"]
-        y_pred_linear = model_linear.predict(X_test)
+                train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
+                st.write(f"Training samples: {train_lin.shape[0]}, Test samples: {test_lin.shape[0]}")
+                X = sm.add_constant(train_lin[predictors])
+                y = train_lin["Score"]
+                model_linear = sm.OLS(y, X).fit(cov_type='HC3')
 
-        r2_train_linear = model_linear.rsquared
-        r2_test_linear = r2_score(y_test, y_pred_linear)
-        mse_train_linear = mean_squared_error(y, model_linear.fittedvalues)
-        mse_test_linear = mean_squared_error(y_test, y_pred_linear)
-        mae_train_linear = mean_absolute_error(y, model_linear.fittedvalues)
-        mae_test_linear = mean_absolute_error(y_test, y_pred_linear)
-        rmse_train_linear = np.sqrt(mse_train_linear)
-        rmse_test_linear = np.sqrt(mse_test_linear)
-      
-        st.subheader("📈 Train Set Performance")
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.metric("Train R²", f"{r2_train_linear:.3f}")
-        with c2:
-            st.metric("MSE", f"{mse_train_linear:.3f}")
-        with c3:
-            st.metric("MAE", f"{mae_train_linear:.3f}")
-        with c4:
-            st.metric("RMSE", f"{rmse_train_linear:.3f}")
+                X_test = sm.add_constant(test_lin[predictors])
+                y_test = test_lin["Score"]
+                y_pred_linear = model_linear.predict(X_test)
 
-        st.subheader("📉 Test Set Performance")
-        c1, c2, c3, c4 = st.columns(4)
-        with c1:
-            st.metric("Test R²", f"{r2_test_linear:.3f}")
-        with c2:
-            st.metric("MSE", f"{mse_test_linear:.3f}")
-        with c3:
-            st.metric("MAE", f"{mae_test_linear:.3f}")
-        with c4:
-            st.metric("RMSE", f"{rmse_test_linear:.3f}")
-        
-        df_model["Predicted_Score_Linear"] = model_linear.predict(sm.add_constant(df_model[features]))
-        st.dataframe(df_model[["Date", "Score", "Predicted_Score_Linear"]].sort_values("Date"))
+                r2_train_linear = model_linear.rsquared
+                r2_test_linear = r2_score(y_test, y_pred_linear)
+                mse_train_linear = mean_squared_error(y, model_linear.fittedvalues)
+                mse_test_linear = mean_squared_error(y_test, y_pred_linear)
+                mae_train_linear = mean_absolute_error(y, model_linear.fittedvalues)
+                mae_test_linear = mean_absolute_error(y_test, y_pred_linear)
+                rmse_train_linear = np.sqrt(mse_train_linear)
+                rmse_test_linear = np.sqrt(mse_test_linear)
+                # ----------------------------- PERFORMANCE METRICS -----------------------------
+                st.subheader("📈 Train Set Performance")
+                c1, c2, c3, c4 = st.columns(4)
+                with c1:
+                    st.metric("Train R²", f"{r2_train_linear:.3f}")
+                with c2:
+                    st.metric("MSE", f"{mse_train_linear:.3f}")
+                with c3:
+                    st.metric("MAE", f"{mae_train_linear:.3f}")
+                with c4:
+                    st.metric("RMSE", f"{rmse_train_linear:.3f}")
 
-        with st.expander("ℹ️ Model Summary", expanded=False):
-            c1, c2 = st.columns(2)
-            with c1:
-                st.text(model_linear.summary().as_text())
-            with c2:
-                fig, ax = plt.subplots(figsize=(10,5))
-                sns.lineplot(data=df_model, x="Date", y="Score", label="Actual", ax=ax)
-                sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear", label="Predicted", ax=ax, linestyle="--", linewidth=1)
-                ax.set_title("Actual vs Predicted Recovery Score (Linear Regression)")
-                ax.set_xlabel("")
-                ax.set_ylabel("Recovery Score")
-                ax.tick_params(axis='x', rotation=45)
-                ax.legend()
-                sns.despine(ax=ax)
-                st.pyplot(fig)
+                st.subheader("📉 Test Set Performance")
+                c1, c2, c3, c4 = st.columns(4)
+                with c1:
+                    st.metric("Test R²", f"{r2_test_linear:.3f}", delta=f"{r2_test_linear - r2_train_linear:.3f}", 
+                            delta_color="inverse" if r2_test_linear > r2_train_linear else "normal")
+                with c2:
+                    st.metric("MSE", f"{mse_test_linear:.3f}", delta=f"{mse_test_linear - mse_train_linear:.3f}", 
+                            delta_color="inverse" if mse_test_linear > mse_train_linear else "normal")
+                with c3:
+                    st.metric("MAE", f"{mae_test_linear:.3f}", delta=f"{mae_test_linear - mae_train_linear:.3f}", 
+                            delta_color="inverse" if mae_test_linear < mae_train_linear else "normal")
+                with c4:
+                    st.metric("RMSE", f"{rmse_test_linear:.3f}", delta=f"{rmse_test_linear - rmse_train_linear:.3f}", 
+                            delta_color="inverse" if rmse_test_linear > rmse_train_linear else "normal")
+                
+                df_model["Predicted_Score_Linear"] = model_linear.predict(sm.add_constant(df_model[predictors]))
+                df_model["Predicted_Score_Linear_Test_Data"] = np.nan
+                df_model.loc[test_lin.index, "Predicted_Score_Linear_Test_Data"] = model_linear.predict(
+                    sm.add_constant(test_lin[predictors], has_constant="add"))
+                with st.expander("🗂️ Predictions Dataframe", expanded=False):
+                    st.dataframe(df_model[["Date", "Score", "Predicted_Score_Linear", "Predicted_Score_Linear_Test_Data"]].sort_values("Date"))
+            with st.expander("ℹ️ Model Summary", expanded=False):
+                c1, c2 = st.columns(2)
+                filtered_test = df_model.loc[test_lin.index].dropna(subset=["Predicted_Score_Linear_Test_Data"])
+                test_start = filtered_test["Date"].min()
+                test_end = filtered_test["Date"].max()
+                with c1:
+                    st.text(model_linear.summary().as_text())
+                    st.markdown(f"**Out-of-sample Test R² (trained on train set):** {r2_test_linear:.3f}")
+                with c2:
+                    fig, ax = plt.subplots(figsize=(10,5))
+                    sns.lineplot(data=df_model, x="Date", y="Score", label="Actual", ax=ax)
+                    sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear", label="Predicted", ax=ax, linestyle=":", linewidth=1)
+                    sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear_Test_Data", label="Predicted (Test Data)", ax=ax, linestyle="--", linewidth=1)
+                    ax.axvspan(test_start, test_end, color="lightgrey", alpha=0.2, label="Test Set Period")
+                    ax.set_title("Actual vs Predicted Sleep Score (Test Set)", fontweight="bold", fontsize=14, pad=15)
+                    ax.set_xlabel("")
+                    ax.set_ylabel("Score")
+                    ax.tick_params(axis='x', rotation=45)
+                    ax.legend(loc="best", fontsize=7)
+                    sns.despine(ax=ax)
+                    st.pyplot(fig)
+
+                    fig, ax = plt.subplots(figsize=(10,5))
+                    sns.lineplot(data=filtered_test, x="Date", y="Score", label="Actual", ax=ax, marker="o")
+                    sns.lineplot(data=filtered_test, x="Date", y="Predicted_Score_Linear_Test_Data", label="Predicted (Test Data)",
+                                  ax=ax, marker="x", linewidth=1, linestyle=":")
+                    ax.set_xlabel("")
+                    ax.set_ylabel("Score")
+                    ax.tick_params(axis='x', rotation=45)
+                    sns.despine(ax=ax)
+                    ax.legend(loc="lower left", fontsize=7)
+                    st.pyplot(fig)
+            #----------------------------- RESIDUALS ANALYSIS -----------------------------
+            with st.expander("📊 Residuals Analysis", expanded=False):
+                option_residuals = ["On Train Set", "On Test Set", "Both"]
+                residuals_analysis = st.segmented_control("Select residuals analysis dataset:", options=option_residuals, key="residuals_analysis")
+                if residuals_analysis == "On Train Set":
+                    st.subheader("🧾 Residuals Analysis on Train Set")
+                    residuals_train_df = df_model[df_model.index.isin(train_lin.index)].copy()
+                    residuals_train_df["Residuals"] = model_linear.resid
+                    fitted = model_linear.fittedvalues
+                    pvalue_resid, interpretation_resid = normality_test(residuals_train_df["Residuals"])
+                    if pvalue_resid > 0.05:
+                        st.success(f"Residuals appear to be normally distributed (p={pvalue_resid:.3f}).")
+                    else:
+                        st.info(f"Residuals do not appear to be normally distributed (p={pvalue_resid:.3f}).")
+
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sm.qqplot(residuals_train_df["Residuals"], line='45', ax=ax, fit=True)
+                        ax.set_title("QQ Plot of Residuals (Train Set)", fontsize=14, fontweight="bold", pad=15)
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                    with c2:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sns.histplot(residuals_train_df["Residuals"], kde=True, stat="density", ax=ax)
+                        ax.set_title("Histogram of Residuals (Train Set)", fontsize=14, fontweight="bold", pad=15)
+                        ax.set_xlabel("Residuals")
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                    c3, c4 = st.columns(2)
+                    with c3:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sns.scatterplot(x=fitted, y=residuals_train_df["Residuals"], ax=ax)
+                        ax.axhline(0, color="red", linestyle="--")
+                        ax.set_title("Residuals vs Fitted Values (Train Set)", fontsize=14, fontweight="bold", pad=15)
+                        ax.set_xlabel("Fitted Values")
+                        ax.set_ylabel("Residuals")
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                    with c4:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sns.lineplot(data=residuals_train_df, x="Date", y="Residuals", ax=ax)
+                        ax.axhline(0, color="red", linestyle="--")
+                        ax.set_title("Residuals over Time (Train Set)", fontsize=14, fontweight="bold", pad=15)
+                        ax.set_xlabel("")
+                        ax.set_ylabel("Residuals")
+                        ax.tick_params(axis='x', rotation=45)
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+
+                elif residuals_analysis == "On Test Set":
+                    st.subheader("🧾 Residuals Analysis on Test Set")
+                    residuals_test_df = df_model[df_model.index.isin(test_lin.index)].copy()
+                    residuals_test_df["Residuals"] = residuals_test_df["Score"] - residuals_test_df["Predicted_Score_Linear_Test_Data"]
+                    fitted_test = residuals_test_df["Predicted_Score_Linear_Test_Data"]
+                    pvalue_resid_test, interpretation_resid_test = normality_test(residuals_test_df["Residuals"])
+                    if pvalue_resid_test > 0.05:
+                        st.success(f"Residuals appear to be normally distributed (p={pvalue_resid_test:.3f}).")
+                    else:
+                        st.info(f"Residuals do not appear to be normally distributed (p={pvalue_resid_test:.3f}).")
+
+                    c1, c2= st.columns(2)
+                    with c1:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sm.qqplot(residuals_test_df["Residuals"], line='45', ax=ax, fit=True)
+                        ax.set_title("QQ Plot of Residuals (Test Set)", fontsize=14, fontweight="bold", pad=15)
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                    with c2:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sns.histplot(residuals_test_df["Residuals"], kde=True, stat="density", ax=ax)
+                        ax.set_title("Histogram of Residuals (Test Set)", fontsize=14, fontweight="bold", pad=15)
+                        ax.set_xlabel("Residuals")
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                    c3, c4 = st.columns(2)
+                    with c3:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sns.scatterplot(x=fitted_test, y=residuals_test_df["Residuals"], ax=ax)
+                        ax.axhline(0, color="red", linestyle="--")
+                        ax.set_title("Residuals vs Fitted Values (Test Set)", fontsize=14, fontweight="bold", pad=15)
+                        ax.set_xlabel("Fitted Values")
+                        ax.set_ylabel("Residuals")
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                    with c4:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sns.lineplot(data=residuals_test_df, x="Date", y="Residuals", ax=ax)
+                        ax.axhline(0, color="red", linestyle="--")
+                        ax.set_title("Residuals over Time (Test Set)", fontsize=14, fontweight="bold", pad=15)
+                        ax.set_xlabel("")
+                        ax.set_ylabel("Residuals")
+                        ax.tick_params(axis='x', rotation=45)
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                elif residuals_analysis == "Both":
+                    st.subheader("🧾 Residuals Analysis on Train & Test Set")
+                    df_model["Residuals"] = df_model["Score"] - df_model["Predicted_Score_Linear"]
+                    pvalue_resid_both, interpretation_resid_both = normality_test(df_model["Residuals"])
+                    if pvalue_resid_both > 0.05:
+                        st.success(f"Residuals appear to be normally distributed (p={pvalue_resid_both:.3f}).")
+                    else:
+                        st.info(f"Residuals do not appear to be normally distributed (p={pvalue_resid_both:.3f}).")
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sm.qqplot(df_model["Residuals"], line='45', ax=ax, fit=True)
+                        ax.set_title("QQ Plot of Residuals (All Data)", fontsize=14, fontweight="bold", pad=15)
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                    with c2:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sns.histplot(df_model["Residuals"], kde=True, stat="density", ax=ax)
+                        ax.set_title("Histogram of Residuals (All Data)", fontsize=14, fontweight="bold", pad=15)
+                        ax.set_xlabel("Residuals")
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                    c3, c4 = st.columns(2)
+                    with c3:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sns.scatterplot(x=df_model["Predicted_Score_Linear"], y=df_model["Residuals"], ax=ax)
+                        ax.axhline(0, color="red", linestyle="--")
+                        ax.set_title("Residuals vs Fitted Values (All Data)", fontsize=14, fontweight="bold", pad=15)
+                        ax.set_xlabel("Fitted Values")
+                        ax.set_ylabel("Residuals")
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+                    with c4:
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        sns.lineplot(data=df_model, x="Date", y="Residuals", ax=ax)
+                        ax.axhline(0, color="red", linestyle="--")
+                        ax.set_title("Residuals over Time (All Data)", fontsize=14, fontweight="bold", pad=15)
+                        ax.set_xlabel("")
+                        ax.set_ylabel("Residuals")
+                        ax.tick_params(axis='x', rotation=45)
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+        # ------------------------------FROZEN MODEL DEPLOYMENT PHASE-----------------------------
+        elif (st.session_state.model_frozen is None) and (n >= 150):
+            st.success("MODEL READY FOR DEPLOYMENT (FREEZING NOW)", icon="✅")
+            freeze_date = df_model.iloc[149]["Date"]  # Freeze after first 150 samples (0-149)
+            frozen_df = df_model[df_model["Date"] <= freeze_date].copy()
+
+            X_frozen = sm.add_constant(frozen_df[predictors])
+            y_frozen = frozen_df["Score"]
+
+            model_frozen = sm.OLS(y_frozen, X_frozen).fit(cov_type='HC3')
+
+            st.session_state.model_frozen = model_frozen
+            st.session_state.freeze_date = freeze_date
+            st.session_state.freeze_predictors = predictors.copy()
+
+            st.info(f"Frozen on {freeze_date.date()} New data after this will be monitored, not used for training.", icon="ℹ️")
+        #------------------------------ DEPLOYMENT & MONITORING -----------------------------
+        else:
+            st.success("MODEL DEPLOYED (SESSION-FROZEN)", icon="✅")
+            # Safety: predictors must match
+            if st.session_state.freeze_predictors != predictors:
+                st.error("Predictors changed after model freeze. Please refresh/reset the model.")
+                st.stop()
+
+            model_frozen = st.session_state.model_frozen
+            freeze_date = st.session_state.freeze_date
+
+            # Predict for all rows with the frozen model
+            X_all = sm.add_constant(df_model[predictors], has_constant="add")
+            df_model["yhat_frozen"] = model_frozen.predict(X_all)
+            df_model["resid_frozen"] = df_model["Score"] - df_model["yhat_frozen"]
+
+            # Split into in-sample (<= freeze) and live (> freeze)
+            live_df = df_model[df_model["Date"] > freeze_date].copy()
+
+            st.caption(f"Frozen on {freeze_date.date()} | Live samples: {len(live_df)}")
+
+            # Show latest prediction
+            last = df_model.sort_values("Date").iloc[-1]
+            st.metric("Latest predicted score", f"{last['yhat_frozen']:.2f}")
+
+            # Monitoring metrics on LIVE (post-freeze)
+            if len(live_df) >= 5:
+                mae_live = mean_absolute_error(live_df["Score"], live_df["yhat_frozen"])
+                rmse_live = np.sqrt(mean_squared_error(live_df["Score"], live_df["yhat_frozen"]))
+                bias_live = live_df["resid_frozen"].mean()
+
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Live MAE", f"{mae_live:.2f}")
+                c2.metric("Live RMSE", f"{rmse_live:.2f}")
+                c3.metric("Live Bias", f"{bias_live:.2f}")
+            else:
+                st.info("Not enough post-freeze samples yet for stable monitoring.")
+
+            # Plot live residual drift
+            with st.expander("📊 Monitoring: Live residuals", expanded=False):
+                if len(live_df) > 0:
+                    fig, ax = plt.subplots(figsize=(10,4))
+                    sns.lineplot(data=live_df, x="Date", y="resid_frozen", ax=ax)
+                    ax.axhline(0, color="red", linestyle="--")
+                    ax.set_title("Post-freeze residuals over time")
+                    ax.tick_params(axis='x', rotation=45)
+                    st.pyplot(fig)
+
+    else:   #Toggle Logistic Regression Selected
+        recovery["Score_Binary"] = recovery["Quality"].apply(sleep_classifier)
+        target = "Score_Binary"
+        predictors_logit = ["Stress_prev_day", "Awake", "Asleep hrs"]
+        df_model_logit = recovery[["Date"] + predictors_logit + [target]].dropna().copy()
+        df_model_logit = df_model_logit.sort_values("Date")
+        n = df_model_logit.shape[0]
+
+        if "logit_frozen" not in st.session_state:
+            st.session_state.logit_frozen = None
+        if "logit_freeze_date" not in st.session_state:
+            st.session_state.logit_freeze_date = None
+        if "logit_freeze_predictors" not in st.session_state:
+            st.session_state.logit_freeze_predictors = None
+        # ---------------------------------LOGIT ON TRAINING PHASE-----------------------------
+        if (st.session_state.logit_frozen is None) and (n < 150):
+            st.warning("MODEL ON TRAINING PHASE YET",icon="spinner")
+            st.dataframe(df_model_logit)
+            st.write("Modeling on: ", n, "samples with no missing values in selected features and Score_Binary.")
+            train_logit, test_logit = train_test_split(df_model_logit, test_size=0.2, shuffle=False, stratify=None)
+            st.write(f"Training samples: {train_logit.shape[0]}, Test samples: {test_logit.shape[0]}")
+            X_logit = sm.add_constant(train_logit[predictors_logit], has_constant="add")
+            y_logit = train_logit[target]
+            model_logit = sm.Logit(y_logit, X_logit).fit()
+            st.text(model_logit.summary().as_text())
+
+            # Predictions on test set
+            thresholds= 0.5
+            test_logit["yhat_logit"] = model_logit.predict(sm.add_constant(test_logit[predictors_logit], has_constant="add")).copy()
+            st.dataframe(test_logit[["Date", target, "yhat_logit"]])
+            st.info(f"LOGIT TEST MEAN: {test_logit['yhat_logit'].mean()}")
+            st.write("ROC SCORE:" , roc_auc_score(test_logit[target], test_logit["yhat_logit"]))
+            st.write("ACCURACY SCORE:", accuracy_score(test_logit[target], (test_logit["yhat_logit"] >= thresholds).astype(int)))
+            fpr, tpr, thresholds = roc_curve(test_logit[target], test_logit["yhat_logit"])
+            fig, ax = plt.subplots(figsize=(10,4))
+            ax.plot(fpr, tpr, label="ROC Curve")
+            ax.plot([0, 1], [0, 1], linestyle="--", color="gray")
+            ax.set_xlabel("False Positive Rate")
+            ax.set_ylabel("True Positive Rate")
+            ax.set_title("ROC Curve")
+            ax.legend()
+            st.pyplot(fig)
+
+
+  
+
 st.caption(
     "Tip: If you only train 3–4 days/week, use weekly aggregation (Volume / mean Recovery / mean Sleep) "
     "to avoid the mismatch between daily sleep and training frequency."
