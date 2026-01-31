@@ -6,6 +6,9 @@
 - OLS for deployment after 150 samples
 - Deployment and training params
 - OLS analysis (metrics, residuals)
+- Correlation matrix
+- ECDF and complementary ECDF on stats tab
+- Hypothesis test for normality improved
 
 ## [2.2.0] - 2026/01/28
 -Stats tab

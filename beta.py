@@ -205,8 +205,70 @@ def outlier_detection_zscore_modified(series, threshold=3):
     outliers = series[np.abs(modified_z_scores) > threshold]
     return outliers
 
+def correlation_insight(df, col1, col2):
+    """Provide insight on correlation between two columns."""
+    if df is None or col1 not in df.columns or col2 not in df.columns:
+        return "Insufficient data for correlation analysis."
+    corr_coef = df[[col1, col2]].dropna().corr().iloc[0, 1]
+    if corr_coef == 1:
+        return st.success(f"Perfect positive correlation (1.00) between {col1} and {col2}.")
+    elif corr_coef > 0.7:
+        return st.success(f"Strong positive correlation ({corr_coef:.2f}) between {col1} and {col2}.")
+    elif corr_coef > 0.49:
+        return st.info(f"Moderate positive correlation ({corr_coef:.2f}) between {col1} and {col2}.")
+    elif corr_coef > 0:
+        return st.warning(f"Weak or no significant correlation ({corr_coef:.2f}) between {col1} and {col2}.")
+    elif corr_coef == -1:
+        return st.success(f"Perfect negative correlation (1.00) between {col1} and {col2}.")
+    elif corr_coef < -0.7:
+        return st.success(f"Strong negative correlation ({corr_coef:.2f}) between {col1} and {col2}.")
+    elif corr_coef < -0.49:
+        return st.info(f"Moderate negative correlation ({corr_coef:.2f}) between {col1} and {col2}.")
+    else:
+        return st.warning(f"Weak or no significant correlation ({corr_coef:.2f}) between {col1} and {col2}.")
+    
+def fit_distribution(data): #Function to fit distributions and calculate AIC/BIC
+    data = np.array(data)
+    distribution = {
+        "normal": stats.norm,
+        "student-t": stats.t,
+        "cauchy": stats.cauchy,
+        "laplace": stats.laplace,
+        "skewnorm": stats.skewnorm,
+        # Recommended additions for positive skewed data
+        "lognormal": stats.lognorm,      # Very common for flight hours
+        "gamma": stats.gamma,            # Positive values, flexible shape
+        "exponential": stats.expon,      # Simple right-skewed
+        "weibull": stats.weibull_min,    # Reliability/lifetime data
+    }
+    results = []
+
+    for name, dist in distribution.items():
+        try:
+            params = dist.fit(data)
+            ll = np.sum(dist.logpdf(data, *params))
+            k = len(params)
+            aic = 2*k - 2*ll
+            bic = np.log(len(data))*k - 2*ll
+        
+            results.append({
+                "distribution": name,
+                "params": params,
+                "AIC": aic,
+            "BIC": bic
+            })
+        except:
+            # Handle exceptions for distributions that fail to fit
+            pass
+    return pd.DataFrame(results).sort_values("AIC")
+
 def sleep_classifier(q):
     return 1 if q in ["Good", "Excellent"] else 0
+
+def compute_ecdf(data, x, complementary=True):
+    counter = np.sum(data > x) if complementary else np.sum(data <= x)
+    return np.round(counter / len(data), 4)
+
 # -------------------------
 # Uploads (hidden after loaded)
 # -------------------------
@@ -963,7 +1025,9 @@ with tab4:
 
             else:
                 st.info("Workouts file needs a VOLUME column to compute weekly load correlations.")
-
+# =========================
+# TAB 5 — STATS
+# =========================
 with tab5:
     # Data agg necessary for hypothesis testing
     recovery["Date"] = pd.to_datetime(recovery["Date"])  # Convert to datetime
@@ -1009,30 +1073,83 @@ with tab5:
         c6.metric("Coef of Var (CV)", "Good" if cv is not None and cv < 0.1 else "Acceptable" if cv is not None and cv < 0.2 else "High", 
                   delta=f"{round(cv*100, 2)} %",delta_color="normal" if cv is not None and cv < 0.1 else "orange" if cv is not None and cv < 0.2 else "inverse" if cv is not None else None,
                   help="CV <10% is considered good stability; 10-20% acceptable; >20% high variability.")
-    # Normality test
-
+    #------------------------------------- EMPIRICAL CDF & PERCENTILES ----------------------------------------
+    with st.expander("📊 Empirical CDF & Percentiles", expanded=False):
+        st.subheader("📊 Empirical CDF & Percentiles")
+        c1, c2 = st.columns(2)
+        with c1:
+            if picked_col is not None and not picked_col.dropna().empty:
+                complementary = st.segmented_control("Complementary CDF ?:", [True, False], key="cdf_type_control", default=True, 
+                                                     help="If True then complementary CDF (1 - CDF) is shown.")
+                perc_90 = picked_col.quantile(0.9)
+                perc_75 = picked_col.quantile(0.75)
+                fig, ax = plt.subplots(figsize=(10, 4))
+                cecdf_50 = compute_ecdf(picked_col.dropna(), median_val, complementary=complementary)
+                cecdf_75 = compute_ecdf(picked_col.dropna(), perc_75, complementary=complementary)
+                cecdf_90 = compute_ecdf(picked_col.dropna(), perc_90, complementary=complementary)
+                sns.ecdfplot(data=recovery, x=picked_col.dropna(), label=f"Empirical CDF {check_metric}", 
+                            color="green", complementary=complementary, ax=ax)
+                plt.axvline(mean_val, color="blue", linestyle="--", label=f"Mean: {mean_val:.2f}", linewidth=0.5)
+                plt.axvline(median_val, color="lightseagreen", linestyle=":", label=f"50th Percentile: {median_val:.2f}", linewidth=1)
+                plt.axvline(perc_90, color="yellow", linestyle="--", label=f"90th Percentile: {perc_90:.2f}", linewidth=0.5)
+                plt.axvline(perc_75, color="brown", linestyle="--", label=f"75th Percentile: {perc_75:.2f}", linewidth=0.5)
+                if complementary:
+                    plt.title(f"Complementary ECDF of {check_metric}", fontsize=14, fontweight="bold", pad=15)
+                    plt.ylabel("Complementary ECDF")
+                else:
+                    plt.title(f"Empirical CDF of {check_metric}", fontsize=14, fontweight="bold", pad=15)
+                    plt.ylabel("ECDF")
+                plt.xlabel(check_metric)
+                plt.legend(loc="best", fontsize=7)
+                sns.despine()
+                st.pyplot(fig)
+            else:
+                st.warning(f"No data available for {check_metric} to plot ECDF.")
+        with c2:
+            st.subheader(f"📈 Percentile Insights {check_metric}")
+            st.write("Typical value (median)", round(median_val,2))
+            st.write("Uncommon value (75th ):", round(perc_75,2))   
+            st.write("Rare high value (90th):", round(perc_90,2))
+            st.subheader(f"📊 Probability Insights {check_metric}")
+            if complementary:
+                st.write("The probability of exceeding", round(median_val,2), " is:" , round((cecdf_50)*100, 2), " %")
+                st.write("The probability of exceeding", round(perc_75,2), " is:", round((cecdf_75)*100, 2), " %")
+                st.write("The probability of exceeding", round(perc_90,2), " is:", round((cecdf_90)*100, 2), " %")
+            else:
+                st.write("The probability of getting any value up to my typical performance is:", round(cecdf_50*100, 2), " %")
+                st.write("The probability of getting any value up to common performance is:", round(cecdf_75*100, 2), " %")
+                st.write("The probability of getting any value up to atypical performance is:", round(cecdf_90*100, 2), " %")
+            st.info("Note: Even though the ECDF provides empirical probabilities based on historical data, " \
+            "it does not guarantee future outcomes. Use this information as a guide rather than a definitive prediction.", 
+            icon="ℹ️")
+    #------------------------------------- NORMALITY TEST & VISUALS ----------------------------------------
     with st.expander("🔍 Normality Test for Recovery", expanded=False):
         st.subheader("🔍 Normality Test for Recovery")
         col_pvalue, col_inter = normality_test(picked_col) if picked_col is not None else (None, None)
         # Interpretation
         if col_pvalue is not None and col_pvalue > 0.05:
-            st.success(f"{check_metric} appears to be normally distributed (p={col_pvalue:.3f}). You can use parametric tests.")
+            st.success(f"Shapiro Wilk Test: {check_metric} appears to be normally distributed (p={col_pvalue:.3f}). You can use parametric tests.")
         elif col_pvalue is not None and col_pvalue <= 0.05:
-            st.info(f"{check_metric} does not appear to be normally distributed (p={col_pvalue:.3f}). You may want to use non-parametric tests.")
+            st.info(f"Shapiro Wilk Test: {check_metric} does not appear to be normally distributed (p={col_pvalue:.3f}). You may want to use non-parametric tests.")
         else:
             st.info(f"Not enough data to perform normality test on {check_metric}.")
-
+        try:
+            distributions = pd.to_numeric(picked_col, errors="coerce").dropna()
+            st.dataframe(fit_distribution(distributions))
+        except Exception as e:
+            st.error(f"Error fitting distribution: {e}")
+        bins = st.slider("Select number of bins for histogram", 5, 50, 20, 1, width=250, key="hist_bins_slider")
         c1, c2 = st.columns(2)
         with c1:
             #Plot histogram
             fig, ax = plt.subplots(figsize=(7,3))
-            sns.histplot(picked_col.dropna(), kde=True, ax=ax, stat="probability")
+            sns.histplot(picked_col.dropna(), kde=True, ax=ax, stat="probability", bins=bins)
             ax.axvline(mean_val, color="blue", linestyle="--", label=f"Mean: {mean_val:.2f}")
             ax.axvline(median_val, color="red", linestyle=":", label=f"Median: {median_val:.2f}")
             ax.axvline(trim_mean_val, color="green", linestyle="-.", label=f"Trimmed Mean: {trim_mean_val:.2f}")
             ax.axvspan(mean_val - std_val, mean_val + std_val, color="yellow", alpha=0.15, label=f"±1 Std Dev: {std_val:.2f}")
             ax.set_title(f"Histogram of {check_metric}", fontsize=14, fontweight="bold", pad=15)
-            ax.legend(loc="best", fontsize=8)
+            ax.legend(loc="best", fontsize=7)
             ax.set_xlabel(check_metric)
             ax.set_ylabel("Probability")
             sns.despine(ax=ax)
@@ -1045,19 +1162,38 @@ with tab5:
             ax.set_xlabel(check_metric)
             sns.despine(ax=ax)
             st.pyplot(fig)
-        fig, ax = plt.subplots(figsize=(10, 3))
-        sns.lineplot(data=recovery, x="Date", y=check_metric, ax=ax, linewidth=1)
-        ax.axhline(mean_val, color="blue", linestyle="--", label=f"Mean: {mean_val:.2f}")
-        ax.axhline(median_val, color="red", linestyle=":", label=f"Median: {median_val:.2f}")
-        ax.axhline(trim_mean_val, color="green", linestyle="-.", label=f"Trimmed Mean: {trim_mean_val:.2f}")
-        ax.axhspan(mean_val - std_val, mean_val + std_val, color="yellow", alpha=0.05, label=f"±1 Std Dev: {std_val:.2f}")
-        ax.legend(loc="best", fontsize=5)
-        ax.set_title(f"Time Series of {check_metric}", fontsize=14, fontweight="bold", pad=15)
-        ax.set_xlabel("")
-        ax.set_ylabel(check_metric)
-        sns.despine(ax=ax)
-        ax.tick_params(axis='x', rotation=45)
-        st.pyplot(fig)
+
+        if  st.checkbox("Show full time series plot", value=True, key="full_time_series_checkbox"):
+            fig, ax = plt.subplots(figsize=(10, 3))
+            sns.lineplot(data=recovery, x="Date", y=check_metric, ax=ax, linewidth=1)
+            ax.axhline(mean_val, color="blue", linestyle="--", label=f"Mean: {mean_val:.2f}")
+            ax.axhline(median_val, color="red", linestyle=":", label=f"Median: {median_val:.2f}")
+            ax.axhline(trim_mean_val, color="green", linestyle="-.", label=f"Trimmed Mean: {trim_mean_val:.2f}")
+            ax.axhspan(mean_val - std_val, mean_val + std_val, color="yellow", alpha=0.05, label=f"±1 Std Dev: {std_val:.2f}")
+            ax.legend(loc="best", fontsize=5)
+            ax.set_title(f"Time Series of {check_metric}", fontsize=14, fontweight="bold", pad=15)
+            ax.set_xlabel("")
+            ax.set_ylabel(check_metric)
+            sns.despine(ax=ax)
+            ax.tick_params(axis='x', rotation=45)
+            st.pyplot(fig)
+        else:
+            date_plot = st.slider("Select number of days to show for time series plot", 30, 365, 180, 1, key="time_series_days_slider", 
+                width=250)
+            date_filter = recovery["Date"].max() - pd.Timedelta(days=date_plot)
+            fig, ax = plt.subplots(figsize=(10, 3))
+            sns.lineplot(data=recovery[recovery["Date"] >= date_filter], x="Date", y=check_metric, ax=ax, linewidth=1)
+            ax.axhline(mean_val, color="blue", linestyle="--", label=f"Mean: {mean_val:.2f}")
+            ax.axhline(median_val, color="red", linestyle=":", label=f"Median: {median_val:.2f}")
+            ax.axhline(trim_mean_val, color="green", linestyle="-.", label=f"Trimmed Mean: {trim_mean_val:.2f}")
+            ax.axhspan(mean_val - std_val, mean_val + std_val, color="yellow", alpha=0.05, label=f"±1 Std Dev: {std_val:.2f}")
+            ax.legend(loc="best", fontsize=5)
+            ax.set_title(f"Time Series of {check_metric}", fontsize=14, fontweight="bold", pad=15)
+            ax.set_xlabel("")
+            ax.set_ylabel(check_metric)
+            sns.despine(ax=ax)
+            ax.tick_params(axis='x', rotation=45)
+            st.pyplot(fig)
     # Outliers detection
     with st.expander("🧪 Outliers Detection", expanded=False):
         st.subheader("🧪 Outliers Detection")
@@ -1071,8 +1207,8 @@ with tab5:
                     icon="ℹ️")
             st.info(f"Detected {len(outliers_z)} outlier(s) in {check_metric} using Modified Z-Score method.",
                     icon="🚨")
-    # Hypothesis testing
-
+    
+    #------------------------------------- HYPOTHESIS TESTING ----------------------------------------
     with st.expander("🛠️ Tests with rest days and exercise days", expanded=False):
         st.subheader("🛠️ Statistical Tests")
         if col_pvalue > 0.05:
@@ -1083,30 +1219,92 @@ with tab5:
             choice = st.segmented_control(
                 "Select test to perform:",
                 options=options)
-            st.warning("T Test are about means. They test whether the mean is different from the population mean (One-sample test) or whether the means of the groups are significantly different (Independent test).", icon="⚠️")
             if choice == "One-sample t-test":
-                popmean = st.number_input("Enter population mean to compare against:", value=float(mean_val) if mean_val is not None and not pd.isna(mean_val) else 0.0)
-                alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
-                ttest_res = stats.ttest_1samp(group1, popmean, alternative=alternative)
-                button_run = st.button("Run One-sample t-test")
-                if button_run:
-                    st.write(f"t-statistic: {ttest_res.statistic:.3f}," f" p-value: {ttest_res.pvalue:.3f}")
-                    if ttest_res.pvalue < 0.05:
-                        st.success("Reject the null hypothesis at α=0.05 level.")
-                    else:
-                        st.info("Fail to reject the null hypothesis at α=0.05 level.")
+                c1, c2 = st.columns(2)
+                with c1:
+                    option_df = st.selectbox("Select data group to test against population mean:",
+                                             ["Exercise Days", "Rest Days", "All Days"])
+                    if option_df == "Exercise Days":
+                        group = recovery_exercise_done[check_metric].dropna()
+                        st.warning("T Test are about means. They test whether the mean is different from the population mean (One-sample test) or whether the means of the groups are significantly different (Independent test).", icon="⚠️")
+                        popmean = st.number_input("Enter population mean to compare against:", value=float(mean_val) if mean_val is not None and not pd.isna(mean_val) else 0.0)
+                        alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
+                        ttest_res = stats.ttest_1samp(group, popmean, alternative=alternative)
+                        button_run = st.button("Run One-sample t-test")
+                        if button_run:
+                            st.write(f"t-statistic: {ttest_res.statistic:.3f}," f" p-value: {ttest_res.pvalue:.3f}")
+                            if ttest_res.pvalue < 0.05:
+                                st.success("Reject the null hypothesis at α=0.05 level.")
+                            else:
+                                st.info("Fail to reject the null hypothesis at α=0.05 level.")
+                    elif option_df == "Rest Days":
+                        group = recovery_exercise_notdone[check_metric].dropna()
+                        st.warning("T Test are about means. They test whether the mean is different from the population mean (One-sample test) or whether the means of the groups are significantly different (Independent test).", icon="⚠️")
+                        popmean = st.number_input("Enter population mean to compare against:", value=float(mean_val) if mean_val is not None and not pd.isna(mean_val) else 0.0)
+                        alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
+                        ttest_res = stats.ttest_1samp(group, popmean, alternative=alternative)
+                        button_run = st.button("Run One-sample t-test")
+                        if button_run:
+                            st.write(f"t-statistic: {ttest_res.statistic:.3f}," f" p-value: {ttest_res.pvalue:.3f}")
+                            if ttest_res.pvalue < 0.05:
+                                st.success("Reject the null hypothesis at α=0.05 level.")
+                            else:
+                                st.info("Fail to reject the null hypothesis at α=0.05 level.")
+                    elif option_df == "All Days":
+                        group = recovery[check_metric].dropna()
+                        st.warning("T Test are about means. They test whether the mean is different from the population mean (One-sample test) or whether the means of the groups are significantly different (Independent test).", icon="⚠️")
+                        popmean = st.number_input("Enter population mean to compare against:", value=float(mean_val) if mean_val is not None and not pd.isna(mean_val) else 0.0)
+                        alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
+                        ttest_res = stats.ttest_1samp(group, popmean, alternative=alternative)
+                        button_run = st.button("Run One-sample t-test")
+                        if button_run:
+                            st.write(f"t-statistic: {ttest_res.statistic:.3f}," f" p-value: {ttest_res.pvalue:.3f}")
+                            if ttest_res.pvalue < 0.05:
+                                st.success("Reject the null hypothesis at α=0.05 level.")
+                            else:
+                                st.info("Fail to reject the null hypothesis at α=0.05 level.")
+                with c2:
+                    fig, ax = plt.subplots(figsize=(7,5))
+                    sns.kdeplot(group, color="lightblue", label="Exercise Days", ax=ax)
+                    ax.axvline(group.mean(), color="blue", linestyle="--", label=f"Exercise Mean: {group.mean():.2f}")
+                    ax.axvline(popmean, color="red", linestyle="--", label=f"Population Mean: {popmean:.2f}")
+                    sns.despine(ax=ax)
+                    plt.title(f"Distribution of {check_metric}")
+                    plt.xlabel(check_metric)
+                    plt.ylabel("Density")
+                    plt.legend(loc="best", fontsize=7)
+                    st.pyplot(fig)
+
             elif choice == "Independent t-test":
-                st.info(f"Group 1 is {check_metric} with exercise ({group1.shape[0]} samples)")
-                st.info(f"Group 2 is {check_metric} on rest days {group2.shape[0]} samples)")
-                alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
-                ttest2_res = stats.ttest_ind(group1, group2, alternative=alternative, equal_var=False)
-                button_run2 = st.button("Run Independent t-test")
-                if button_run2:
-                    st.write(f"t-statistic: {ttest2_res.statistic:.3f}," f" p-value: {ttest2_res.pvalue:.3f}")
-                    if ttest2_res.pvalue < 0.05:
-                        st.success("Reject the null hypothesis at α=0.05 level.")
-                    else:
-                        st.info("Fail to reject the null hypothesis at α=0.05 level.")
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.warning("T Test are about means. They test whether the mean is different from the population mean (One-sample test) or whether the means of the groups are significantly different (Independent test).", icon="⚠️")
+                    st.info(f"Group 1 is {check_metric} with exercise ({group1.shape[0]} samples)")
+                    st.info(f"Group 2 is {check_metric} on rest days {group2.shape[0]} samples)")
+                    st.write("Exercise mean:", float(group1.mean()))
+                    st.write("Rest mean:", float(group2.mean()))
+                    st.write("Δ mean (ex - rest):", float(group1.mean() - group2.mean()))
+                    alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
+                    ttest2_res = stats.ttest_ind(group1, group2, alternative=alternative, equal_var=False)
+                    button_run2 = st.button("Run Independent t-test")
+                    if button_run2:
+                        st.write(f"t-statistic: {ttest2_res.statistic:.3f}," f" p-value: {ttest2_res.pvalue:.3f}")
+                        if ttest2_res.pvalue < 0.05:
+                            st.success("Reject the null hypothesis at α=0.05 level.")
+                        else:
+                            st.info("Fail to reject the null hypothesis at α=0.05 level.")
+                with c2:
+                    fig, ax = plt.subplots(figsize=(7,5))
+                    sns.kdeplot(group1, color="lightblue", label="Exercise Days", ax=ax)
+                    sns.kdeplot(group2, color="salmon", label="Rest Days", ax=ax)
+                    ax.axvline(group1.mean(), color="blue", linestyle="--", label=f"Exercise Mean: {group1.mean():.2f}")
+                    ax.axvline(group2.mean(), color="red", linestyle="--", label=f"Rest Mean: {group2.mean():.2f}")
+                    sns.despine(ax=ax)
+                    plt.title(f"Distribution of {check_metric}")
+                    plt.xlabel(check_metric)
+                    plt.ylabel("Density")
+                    plt.legend(loc="best", fontsize=7)
+                    st.pyplot(fig)
         elif col_pvalue <= 0.05:
             st.write("Since the data does not appear to be normally distributed, you can use non-parametric tests such as the Wilcoxon signed-rank test or the Mann-Whitney U test for further analysis.")
             options = ["Spearman Correlation", "Mann-Whitney U test"]
@@ -1183,11 +1381,14 @@ with tab5:
                     plt.ylabel("Density")
                     plt.legend(loc="best")
                     st.pyplot(fig)
+# =========================
+# TAB 6 — MODELS
+# =========================
 with tab6:
     st.header("⚙️ Models")
     recovery = st.session_state.df_recovery.copy()
     recovery["Date"] = pd.to_datetime(recovery["Date"], errors="coerce")  # Convert to datetime
-    predictors = ["Stress_prev_day", "Awake", "Asleep hrs"]
+    predictors = ["REM hrs", "Deep hrs", "Stress_prev_day"]
     df_model = recovery[["Date"] + predictors + ["Score"]].dropna().copy()
     df_model = df_model.sort_values("Date")
     st.write("Modeling on: ", df_model.shape[0], "samples with no missing values in selected features and Score.")
@@ -1215,7 +1416,6 @@ with tab6:
                 st.write("Used for prediction:", [f for f in predictors if f in df_model.columns])
 
                 train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
-                st.write(f"Training samples: {train_lin.shape[0]}, Test samples: {test_lin.shape[0]}")
                 X = sm.add_constant(train_lin[predictors])
                 y = train_lin["Score"]
                 model_linear = sm.OLS(y, X).fit(cov_type='HC3')
@@ -1234,7 +1434,7 @@ with tab6:
                 rmse_test_linear = np.sqrt(mse_test_linear)
                 # ----------------------------- PERFORMANCE METRICS -----------------------------
                 st.subheader("📈 Train Set Performance")
-                c1, c2, c3, c4 = st.columns(4)
+                c1, c2, c3, c4, c5, c6 = st.columns(6)
                 with c1:
                     st.metric("Train R²", f"{r2_train_linear:.3f}")
                 with c2:
@@ -1243,28 +1443,43 @@ with tab6:
                     st.metric("MAE", f"{mae_train_linear:.3f}")
                 with c4:
                     st.metric("RMSE", f"{rmse_train_linear:.3f}")
+                with c5:
+                    st.metric("Samples", f"{train_lin.shape[0]}")
+                with c6:
+                    st.metric("Training Start Date", f"{train_lin.Date.min().date()}")
 
                 st.subheader("📉 Test Set Performance")
-                c1, c2, c3, c4 = st.columns(4)
+                c1, c2, c3, c4, c5, c6 = st.columns(6)
                 with c1:
                     st.metric("Test R²", f"{r2_test_linear:.3f}", delta=f"{r2_test_linear - r2_train_linear:.3f}", 
                             delta_color="inverse" if r2_test_linear > r2_train_linear else "normal")
                 with c2:
                     st.metric("MSE", f"{mse_test_linear:.3f}", delta=f"{mse_test_linear - mse_train_linear:.3f}", 
-                            delta_color="inverse" if mse_test_linear > mse_train_linear else "normal")
+                            delta_color="inverse" if mse_test_linear < mse_train_linear else "normal",
+                            help="Mean Squared Error (MSE): lower values indicate better fit.\
+                                 Penalizes larger errors more heavily.")
                 with c3:
                     st.metric("MAE", f"{mae_test_linear:.3f}", delta=f"{mae_test_linear - mae_train_linear:.3f}", 
-                            delta_color="inverse" if mae_test_linear < mae_train_linear else "normal")
+                            delta_color="inverse" if mae_test_linear < mae_train_linear else "normal",
+                            help="Mean Absolute Error (MAE): lower values indicate better fit.")
                 with c4:
                     st.metric("RMSE", f"{rmse_test_linear:.3f}", delta=f"{rmse_test_linear - rmse_train_linear:.3f}", 
-                            delta_color="inverse" if rmse_test_linear > rmse_train_linear else "normal")
-                
+                            delta_color="inverse" if rmse_test_linear < rmse_train_linear else "normal", 
+                            help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
+                with c5:
+                    st.metric("Samples", f"{test_lin.shape[0]}", delta=30-test_lin.shape[0], delta_color="inverse" if test_lin.shape[0] < 30 else "normal",
+                              delta_arrow="down" if test_lin.shape[0] < 30 else "up",
+                              help="Having at least 30 samples in test set is recommended for reliable evaluation.")
+                with c6:
+                    st.metric("Test Start Date", f"{test_lin.Date.min().date()}")
+                # ----------------------------- PREDICTIONS DATAFRAME -----------------------------
                 df_model["Predicted_Score_Linear"] = model_linear.predict(sm.add_constant(df_model[predictors]))
                 df_model["Predicted_Score_Linear_Test_Data"] = np.nan
                 df_model.loc[test_lin.index, "Predicted_Score_Linear_Test_Data"] = model_linear.predict(
                     sm.add_constant(test_lin[predictors], has_constant="add"))
                 with st.expander("🗂️ Predictions Dataframe", expanded=False):
                     st.dataframe(df_model[["Date", "Score", "Predicted_Score_Linear", "Predicted_Score_Linear_Test_Data"]].sort_values("Date"))
+                # ----------------------------- MODEL SUMMARY & VISUALIZATIONS -----------------------------
             with st.expander("ℹ️ Model Summary", expanded=False):
                 c1, c2 = st.columns(2)
                 filtered_test = df_model.loc[test_lin.index].dropna(subset=["Predicted_Score_Linear_Test_Data"])
@@ -1272,14 +1487,20 @@ with tab6:
                 test_end = filtered_test["Date"].max()
                 with c1:
                     st.text(model_linear.summary().as_text())
-                    st.markdown(f"**Out-of-sample Test R² (trained on train set):** {r2_test_linear:.3f}")
+                    st.subheader("🔗 Correlations")
+                    corr = df_model[predictors + ["Score"]].corr()
+                    st.dataframe(corr)
+                    correlation_insight(df_model, "Score", "REM hrs")
+                    correlation_insight(df_model, "Score", "Deep hrs")
+                    correlation_insight(df_model, "Score", "Stress_prev_day")
+
                 with c2:
                     fig, ax = plt.subplots(figsize=(10,5))
                     sns.lineplot(data=df_model, x="Date", y="Score", label="Actual", ax=ax)
                     sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear", label="Predicted", ax=ax, linestyle=":", linewidth=1)
                     sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear_Test_Data", label="Predicted (Test Data)", ax=ax, linestyle="--", linewidth=1)
                     ax.axvspan(test_start, test_end, color="lightgrey", alpha=0.2, label="Test Set Period")
-                    ax.set_title("Actual vs Predicted Sleep Score (Test Set)", fontweight="bold", fontsize=14, pad=15)
+                    ax.set_title("Actual vs Predicted Sleep Score (Train & Test Set)", fontweight="bold", fontsize=14, pad=15)
                     ax.set_xlabel("")
                     ax.set_ylabel("Score")
                     ax.tick_params(axis='x', rotation=45)
@@ -1290,13 +1511,16 @@ with tab6:
                     fig, ax = plt.subplots(figsize=(10,5))
                     sns.lineplot(data=filtered_test, x="Date", y="Score", label="Actual", ax=ax, marker="o")
                     sns.lineplot(data=filtered_test, x="Date", y="Predicted_Score_Linear_Test_Data", label="Predicted (Test Data)",
-                                  ax=ax, marker="x", linewidth=1, linestyle=":")
+                                  ax=ax, marker="x", linewidth=1.5, linestyle=":", color="lightgreen")
                     ax.set_xlabel("")
                     ax.set_ylabel("Score")
+                    ax.set_title("Actual vs Predicted Sleep Score (Test Set)", fontweight="bold", fontsize=14, pad=15)
                     ax.tick_params(axis='x', rotation=45)
                     sns.despine(ax=ax)
                     ax.legend(loc="lower left", fontsize=7)
                     st.pyplot(fig)
+                    st.markdown(f"**Out-of-sample Test R² (trained on train set):** {r2_test_linear:.3f}")
+
             #----------------------------- RESIDUALS ANALYSIS -----------------------------
             with st.expander("📊 Residuals Analysis", expanded=False):
                 option_residuals = ["On Train Set", "On Test Set", "Both"]
@@ -1311,16 +1535,16 @@ with tab6:
                         st.success(f"Residuals appear to be normally distributed (p={pvalue_resid:.3f}).")
                     else:
                         st.info(f"Residuals do not appear to be normally distributed (p={pvalue_resid:.3f}).")
-
+                    st.dataframe(fit_distribution(residuals_train_df["Residuals"]))
                     c1, c2 = st.columns(2)
                     with c1:
-                        fig, ax = plt.subplots(figsize=(10,5))
+                        fig, ax = plt.subplots(figsize=(8,4))
                         sm.qqplot(residuals_train_df["Residuals"], line='45', ax=ax, fit=True)
                         ax.set_title("QQ Plot of Residuals (Train Set)", fontsize=14, fontweight="bold", pad=15)
                         sns.despine(ax=ax)
                         st.pyplot(fig)
                     with c2:
-                        fig, ax = plt.subplots(figsize=(10,5))
+                        fig, ax = plt.subplots(figsize=(8,4))
                         sns.histplot(residuals_train_df["Residuals"], kde=True, stat="density", ax=ax)
                         ax.set_title("Histogram of Residuals (Train Set)", fontsize=14, fontweight="bold", pad=15)
                         ax.set_xlabel("Residuals")
@@ -1328,7 +1552,7 @@ with tab6:
                         st.pyplot(fig)
                     c3, c4 = st.columns(2)
                     with c3:
-                        fig, ax = plt.subplots(figsize=(10,5))
+                        fig, ax = plt.subplots(figsize=(8,4))
                         sns.scatterplot(x=fitted, y=residuals_train_df["Residuals"], ax=ax)
                         ax.axhline(0, color="red", linestyle="--")
                         ax.set_title("Residuals vs Fitted Values (Train Set)", fontsize=14, fontweight="bold", pad=15)
@@ -1337,7 +1561,7 @@ with tab6:
                         sns.despine(ax=ax)
                         st.pyplot(fig)
                     with c4:
-                        fig, ax = plt.subplots(figsize=(10,5))
+                        fig, ax = plt.subplots(figsize=(8,4))
                         sns.lineplot(data=residuals_train_df, x="Date", y="Residuals", ax=ax)
                         ax.axhline(0, color="red", linestyle="--")
                         ax.set_title("Residuals over Time (Train Set)", fontsize=14, fontweight="bold", pad=15)
@@ -1435,6 +1659,7 @@ with tab6:
                         ax.tick_params(axis='x', rotation=45)
                         sns.despine(ax=ax)
                         st.pyplot(fig)
+            
         # ------------------------------FROZEN MODEL DEPLOYMENT PHASE-----------------------------
         elif (st.session_state.model_frozen is None) and (n >= 150):
             st.success("MODEL READY FOR DEPLOYMENT (FREEZING NOW)", icon="✅")
@@ -1502,7 +1727,7 @@ with tab6:
     else:   #Toggle Logistic Regression Selected
         recovery["Score_Binary"] = recovery["Quality"].apply(sleep_classifier)
         target = "Score_Binary"
-        predictors_logit = ["Stress_prev_day", "Awake", "Asleep hrs"]
+        predictors_logit = ["Stress_prev_day", "REM hrs", "Deep hrs"]
         df_model_logit = recovery[["Date"] + predictors_logit + [target]].dropna().copy()
         df_model_logit = df_model_logit.sort_values("Date")
         n = df_model_logit.shape[0]
@@ -1526,12 +1751,12 @@ with tab6:
             st.text(model_logit.summary().as_text())
 
             # Predictions on test set
-            thresholds= 0.5
+            threshold= 0.5
             test_logit["yhat_logit"] = model_logit.predict(sm.add_constant(test_logit[predictors_logit], has_constant="add")).copy()
             st.dataframe(test_logit[["Date", target, "yhat_logit"]])
             st.info(f"LOGIT TEST MEAN: {test_logit['yhat_logit'].mean()}")
             st.write("ROC SCORE:" , roc_auc_score(test_logit[target], test_logit["yhat_logit"]))
-            st.write("ACCURACY SCORE:", accuracy_score(test_logit[target], (test_logit["yhat_logit"] >= thresholds).astype(int)))
+            st.write("ACCURACY SCORE:", accuracy_score(test_logit[target], (test_logit["yhat_logit"] >= threshold).astype(int)))
             fpr, tpr, thresholds = roc_curve(test_logit[target], test_logit["yhat_logit"])
             fig, ax = plt.subplots(figsize=(10,4))
             ax.plot(fpr, tpr, label="ROC Curve")
@@ -1541,10 +1766,6 @@ with tab6:
             ax.set_title("ROC Curve")
             ax.legend()
             st.pyplot(fig)
-
-
-  
-
 st.caption(
     "Tip: If you only train 3–4 days/week, use weekly aggregation (Volume / mean Recovery / mean Sleep) "
     "to avoid the mismatch between daily sleep and training frequency."
