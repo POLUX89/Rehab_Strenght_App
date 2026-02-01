@@ -269,6 +269,39 @@ def compute_ecdf(data, x, complementary=True):
     counter = np.sum(data > x) if complementary else np.sum(data <= x)
     return np.round(counter / len(data), 4)
 
+def metrics_learning_curve(df, sample_size, predictors):
+    df_sample = df.iloc[:sample_size].copy()
+    train, test = train_test_split(df_sample, test_size=0.2, shuffle=False, stratify=None)
+                            
+    X = sm.add_constant(train[predictors])
+    y = train["Score"]
+    model = sm.OLS(y, X).fit(cov_type='HC3')
+
+    X_test = sm.add_constant(test[predictors])
+    y_test = test["Score"]
+    y_pred = model.predict(X_test)
+
+    r2_train = model.rsquared
+    r2_test = r2_score(y_test, y_pred)
+    mse_train = mean_squared_error(y, model.fittedvalues)
+    mse_test = mean_squared_error(y_test, y_pred)
+    mae_train = mean_absolute_error(y, model.fittedvalues)
+    mae_test = mean_absolute_error(y_test, y_pred)
+    rmse_train = np.sqrt(mse_train)
+    rmse_test = np.sqrt(mse_test)
+
+    return {
+        "Model_samples": sample_size,
+        "Train MAE": mae_train,
+        "Test MAE": mae_test,
+        "Train RMSE": rmse_train,
+        "Test RMSE": rmse_test,
+        "Train MSE": mse_train,
+        "Test MSE": mse_test,
+        "Train R²": r2_train,
+        "Test R²": r2_test
+    }
+
 # -------------------------
 # Uploads (hidden after loaded)
 # -------------------------
@@ -1472,6 +1505,59 @@ with tab6:
                               help="Having at least 30 samples in test set is recommended for reliable evaluation.")
                 with c6:
                     st.metric("Test Start Date", f"{test_lin.Date.min().date()}")
+                # ----------------------------- LEARNING CURVE ------------------------------------
+                with st.expander("📈🧠 Learning Curve", expanded=False):
+                    c1, c2 = st.columns(2)
+                    with c1:
+
+                        st.subheader("📊 Learning Curve Metrics at Key Sample Sizes")
+                        sample_sizes = sorted([40, 80, 120, 140, 150, 160, n])
+                        results = []
+
+                        for sample in sample_sizes:
+                            res = metrics_learning_curve(df_model, sample, predictors)
+                            if res is not None:
+                                results.append(res)
+                        if results:
+                            df_all_metrics = pd.DataFrame(results).set_index("Model_samples")
+                            st.dataframe(df_all_metrics)
+                        else:
+                            st.warning("Not enough data to compute learning curve metrics.") 
+
+                        learning_curve_df = pd.DataFrame(results)
+
+                        st.subheader("🪜🧱 Plateaut Detection")
+                        learning_curve_df = learning_curve_df.set_index("Model_samples")
+                        learning_curve_df["% Δ RMSE"] = (learning_curve_df["Test RMSE"].diff().fillna(0)*100) / learning_curve_df["Test RMSE"].shift(1).replace(0, np.nan)
+                        st.dataframe(learning_curve_df[["Test RMSE","% Δ RMSE"]])
+                        st.write("k=", 3)
+                        st.write("% Δ no greater than", 5)
+             
+                    #----------------------------- PLOTTING LEARNING CURVE -----------------------------
+                    with c2:
+                        st.subheader("📈 Learning Curve Plot")
+                        metric = st.selectbox("Select metric to plot:", ["MAE", "MSE", "RMSE"], index=2, key="learning_curve_metric_selectbox")
+                        samples = st.checkbox("Show all values for learning curve (not forecast or extrapolated) ?:", value=True, key="learning_curve_future_values_checkbox")
+                        fig, ax = plt.subplots(figsize=(10,5))
+                        if samples:
+                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Train {metric}", marker="o", label=f"Train {metric}", ax=ax, color="salmon", linestyle=":")                        
+                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Test {metric}", marker="x", label=f"Test {metric}", ax=ax, color="lightgreen")
+                            ax.axvspan(xmin=40, xmax=n, color="lightgrey", alpha=0.2, label="Current Region")
+                        else:
+                            filtered_lc = learning_curve_df.loc[learning_curve_df.index <= n]
+                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Train {metric}", marker="o", label=f"Train {metric}", ax=ax, color="salmon", linestyle=":")                
+                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Test {metric}", marker="x", label=f"Test {metric}", ax=ax, color="lightgreen")
+
+
+                        ax.axvline(x=n, color="blue", linestyle="--", label="Current Sample Size")
+                        ax.set_title(f"Learning Curve: {metric} vs Training Size", fontweight="bold", fontsize=14, pad=15)
+                        ax.set_xlabel("Model Samples")
+                        ax.set_ylabel(metric)
+                        ax.tick_params(axis='x', rotation=45)
+                        ax.legend(loc="best", fontsize=7)
+                        sns.despine(ax=ax)
+                        st.pyplot(fig)
+     
                 # ----------------------------- PREDICTIONS DATAFRAME -----------------------------
                 df_model["Predicted_Score_Linear"] = model_linear.predict(sm.add_constant(df_model[predictors]))
                 df_model["Predicted_Score_Linear_Test_Data"] = np.nan
@@ -1725,6 +1811,8 @@ with tab6:
                     st.pyplot(fig)
 
     else:   #Toggle Logistic Regression Selected
+        st.info("Logistic Regression coming soon!")
+
         recovery["Score_Binary"] = recovery["Quality"].apply(sleep_classifier)
         target = "Score_Binary"
         predictors_logit = ["Stress_prev_day", "REM hrs", "Deep hrs"]
