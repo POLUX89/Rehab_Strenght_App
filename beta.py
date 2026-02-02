@@ -1077,7 +1077,7 @@ with tab5:
     #-----------------------------
     st.header("📉 Stats")
     st.subheader("📊 Recovery on Exercise vs Non-Exercise Days")
-    allowed = sorted(["InBed hrs", "Asleep hrs", "Awake", "REM hrs", "Light hrs", "Deep hrs", "Fall Asleep", 
+    allowed = sorted(["InBed hrs", "Asleep hrs", "Wake Count", "REM hrs", "Light hrs", "Deep hrs", "Fall Asleep", 
             "Overnight HRV", "Stress", "RHR", "Score"])
     check_metric = st.selectbox("Select metric to analyze:", allowed, index=allowed.index("Score"))
     picked_col = recovery[check_metric] if recovery is not None and check_metric in recovery.columns else None
@@ -1421,7 +1421,7 @@ with tab6:
     st.header("⚙️ Models")
     recovery = st.session_state.df_recovery.copy()
     recovery["Date"] = pd.to_datetime(recovery["Date"], errors="coerce")  # Convert to datetime
-    predictors = ["REM hrs", "Deep hrs", "Stress_prev_day"]
+    predictors = ["REM hrs","Stress_prev_day", "Deep hrs", "Wake Count"]
     df_model = recovery[["Date"] + predictors + ["Score"]].dropna().copy()
     df_model = df_model.sort_values("Date")
     st.write("Modeling on: ", df_model.shape[0], "samples with no missing values in selected features and Score.")
@@ -1579,6 +1579,7 @@ with tab6:
                     correlation_insight(df_model, "Score", "REM hrs")
                     correlation_insight(df_model, "Score", "Deep hrs")
                     correlation_insight(df_model, "Score", "Stress_prev_day")
+                    correlation_insight(df_model, "Score", "Wake Count")
 
                 with c2:
                     fig, ax = plt.subplots(figsize=(10,5))
