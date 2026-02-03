@@ -269,15 +269,21 @@ def compute_ecdf(data, x, complementary=True):
     counter = np.sum(data > x) if complementary else np.sum(data <= x)
     return np.round(counter / len(data), 4)
 
-def metrics_learning_curve(df, sample_size, predictors):
+def metrics_learning_curve(df, sample_size, predictors, H=30, min_train=10):
     df_sample = df.iloc[:sample_size].copy()
-    train, test = train_test_split(df_sample, test_size=0.2, shuffle=False, stratify=None)
-                            
-    X = sm.add_constant(train[predictors])
-    y = train["Score"]
-    model = sm.OLS(y, X).fit(cov_type='HC3')
 
-    X_test = sm.add_constant(test[predictors])
+    # Require enough rows to form a stable train/test
+    if len(df_sample) < (H + min_train):
+        return None  # skip this checkpoint
+
+    train = df_sample.iloc[:-H].copy()
+    test  = df_sample.iloc[-H:].copy()
+
+    X = sm.add_constant(train[predictors], has_constant="add")
+    y = train["Score"]
+    model = sm.OLS(y, X).fit(cov_type="HC3")
+
+    X_test = sm.add_constant(test[predictors], has_constant="add")
     y_test = test["Score"]
     y_pred = model.predict(X_test)
 
@@ -292,6 +298,8 @@ def metrics_learning_curve(df, sample_size, predictors):
 
     return {
         "Model_samples": sample_size,
+        "Train size": len(train),
+        "Test size": len(test),
         "Train MAE": mae_train,
         "Test MAE": mae_test,
         "Train RMSE": rmse_train,
@@ -302,6 +310,23 @@ def metrics_learning_curve(df, sample_size, predictors):
         "Test R²": r2_test
     }
 
+def string_to_decimal_hours(time_str):
+    if pd.isna(time_str):
+        return np.nan
+    time_str = time_str.strip()
+    if 'h' in time_str and 'min' in time_str:
+        hours, minutes = time_str.split('h')
+        minutes = minutes.replace('min', '').strip()
+        return float(hours.strip()) + float(minutes) / 60
+    elif 'h' in time_str:
+        hours = time_str.replace('h', '').strip()
+        return float(hours)
+    elif 'min' in time_str:
+        minutes = time_str.replace('min', '').strip()
+        return float(minutes) / 60
+    else:
+        return np.nan
+    
 # -------------------------
 # Uploads (hidden after loaded)
 # -------------------------
@@ -1421,11 +1446,22 @@ with tab6:
     st.header("⚙️ Models")
     recovery = st.session_state.df_recovery.copy()
     recovery["Date"] = pd.to_datetime(recovery["Date"], errors="coerce")  # Convert to datetime
-    predictors = ["REM hrs","Stress_prev_day", "Deep hrs", "Wake Count"]
-    df_model = recovery[["Date"] + predictors + ["Score"]].dropna().copy()
+    recovery["Sleep_need_hrs"] = recovery["Sleep Need"].apply(string_to_decimal_hours)
+    recovery["Efficiency"] = recovery["Efficiency"].str.replace('%', '').astype(float) 
+    recovery["Sleep_hr_surplus"] =  recovery["Asleep hrs"] - recovery["Sleep_need_hrs"]
+
+    predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration"]
+    df_model = recovery[["Date"] + predictors + ["Score", "Quality"]].dropna().copy()
     df_model = df_model.sort_values("Date")
+
+    st.dataframe(df_model.head(5))
     st.write("Modeling on: ", df_model.shape[0], "samples with no missing values in selected features and Score.")
     toggle_model = st.toggle("Linear Regression OR Logistic Regression", True, key="model_toggle")
+
+    for col in predictors:
+        if col not in df_model.columns:
+            st.error(f"Predictor column '{col}' not found in data.")
+            st.stop()
 
     if toggle_model:    #Linear Regression Selected
             #------------------------------FROZEN MODEL CONDITIONALS-----------------------------
@@ -1485,19 +1521,19 @@ with tab6:
                 c1, c2, c3, c4, c5, c6 = st.columns(6)
                 with c1:
                     st.metric("Test R²", f"{r2_test_linear:.3f}", delta=f"{r2_test_linear - r2_train_linear:.3f}", 
-                            delta_color="inverse" if r2_test_linear > r2_train_linear else "normal")
+                            delta_color="red" if r2_test_linear > r2_train_linear else "green")
                 with c2:
                     st.metric("MSE", f"{mse_test_linear:.3f}", delta=f"{mse_test_linear - mse_train_linear:.3f}", 
-                            delta_color="inverse" if mse_test_linear < mse_train_linear else "normal",
+                            delta_color="red" if mse_test_linear > mse_train_linear else "green",
                             help="Mean Squared Error (MSE): lower values indicate better fit.\
                                  Penalizes larger errors more heavily.")
                 with c3:
                     st.metric("MAE", f"{mae_test_linear:.3f}", delta=f"{mae_test_linear - mae_train_linear:.3f}", 
-                            delta_color="inverse" if mae_test_linear < mae_train_linear else "normal",
+                            delta_color="red" if mae_test_linear > mae_train_linear else "green",
                             help="Mean Absolute Error (MAE): lower values indicate better fit.")
                 with c4:
                     st.metric("RMSE", f"{rmse_test_linear:.3f}", delta=f"{rmse_test_linear - rmse_train_linear:.3f}", 
-                            delta_color="inverse" if rmse_test_linear < rmse_train_linear else "normal", 
+                            delta_color="red" if rmse_test_linear > rmse_train_linear else "green", 
                             help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
                 with c5:
                     st.metric("Samples", f"{test_lin.shape[0]}", delta=30-test_lin.shape[0], delta_color="inverse" if test_lin.shape[0] < 30 else "normal",
@@ -1511,7 +1547,7 @@ with tab6:
                     with c1:
 
                         st.subheader("📊 Learning Curve Metrics at Key Sample Sizes")
-                        sample_sizes = sorted([40, 80, 120, 140, 150, 160, n])
+                        sample_sizes = range(20, n, 10)
                         results = []
 
                         for sample in sample_sizes:
@@ -1532,7 +1568,9 @@ with tab6:
                         st.dataframe(learning_curve_df[["Test RMSE","% Δ RMSE"]])
                         st.write("k=", 3)
                         st.write("% Δ no greater than", 5)
-             
+
+                        #def plateau_detection(df, k=3, threshold=5):
+                        st.button("Deploy ?")
                     #----------------------------- PLOTTING LEARNING CURVE -----------------------------
                     with c2:
                         st.subheader("📈 Learning Curve Plot")
@@ -1540,16 +1578,16 @@ with tab6:
                         samples = st.checkbox("Show all values for learning curve (not forecast or extrapolated) ?:", value=True, key="learning_curve_future_values_checkbox")
                         fig, ax = plt.subplots(figsize=(10,5))
                         if samples:
-                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Train {metric}", marker="o", label=f"Train {metric}", ax=ax, color="salmon", linestyle=":")                        
-                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Test {metric}", marker="x", label=f"Test {metric}", ax=ax, color="lightgreen")
+                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Train {metric}",  label=f"Train {metric}", ax=ax, color="blue", linestyle=":", linewidth=1)                        
+                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Test {metric}",  label=f"Test {metric}", ax=ax, color="orange", linewidth=1)
                             ax.axvspan(xmin=40, xmax=n, color="lightgrey", alpha=0.2, label="Current Region")
                         else:
                             filtered_lc = learning_curve_df.loc[learning_curve_df.index <= n]
-                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Train {metric}", marker="o", label=f"Train {metric}", ax=ax, color="salmon", linestyle=":")                
-                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Test {metric}", marker="x", label=f"Test {metric}", ax=ax, color="lightgreen")
+                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Train {metric}", label=f"Train {metric}", ax=ax, color="blue", linestyle=":", linewidth=1)                
+                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Test {metric}", label=f"Test {metric}", ax=ax, color="orange", linewidth=1)
 
 
-                        ax.axvline(x=n, color="blue", linestyle="--", label="Current Sample Size")
+                        ax.axvline(x=n, color="white", linestyle="--", label="Current Sample Size")
                         ax.set_title(f"Learning Curve: {metric} vs Training Size", fontweight="bold", fontsize=14, pad=15)
                         ax.set_xlabel("Model Samples")
                         ax.set_ylabel(metric)
@@ -1576,16 +1614,17 @@ with tab6:
                     st.subheader("🔗 Correlations")
                     corr = df_model[predictors + ["Score"]].corr()
                     st.dataframe(corr)
-                    correlation_insight(df_model, "Score", "REM hrs")
-                    correlation_insight(df_model, "Score", "Deep hrs")
-                    correlation_insight(df_model, "Score", "Stress_prev_day")
-                    correlation_insight(df_model, "Score", "Wake Count")
+
+                    for col in corr.columns:
+                        if col != "Score":
+                            correlation_insight(df_model, "Score", col)
+
 
                 with c2:
                     fig, ax = plt.subplots(figsize=(10,5))
-                    sns.lineplot(data=df_model, x="Date", y="Score", label="Actual", ax=ax)
-                    sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear", label="Predicted", ax=ax, linestyle=":", linewidth=1)
-                    sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear_Test_Data", label="Predicted (Test Data)", ax=ax, linestyle="--", linewidth=1)
+                    sns.lineplot(data=df_model, x="Date", y="Score", label="Actual", ax=ax, color="lightgreen", alpha=0.7)
+                    sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear", label="Predicted", ax=ax, linewidth=1, color="blue")
+                    sns.lineplot(data=df_model, x="Date", y="Predicted_Score_Linear_Test_Data", label="Predicted (Test Data)", ax=ax, linestyle="--", linewidth=1, color="orange")
                     ax.axvspan(test_start, test_end, color="lightgrey", alpha=0.2, label="Test Set Period")
                     ax.set_title("Actual vs Predicted Sleep Score (Train & Test Set)", fontweight="bold", fontsize=14, pad=15)
                     ax.set_xlabel("")
@@ -1596,9 +1635,9 @@ with tab6:
                     st.pyplot(fig)
 
                     fig, ax = plt.subplots(figsize=(10,5))
-                    sns.lineplot(data=filtered_test, x="Date", y="Score", label="Actual", ax=ax, marker="o")
+                    sns.lineplot(data=filtered_test, x="Date", y="Score", label="Actual", ax=ax, marker="o", color="green", alpha=0.7)
                     sns.lineplot(data=filtered_test, x="Date", y="Predicted_Score_Linear_Test_Data", label="Predicted (Test Data)",
-                                  ax=ax, marker="x", linewidth=1.5, linestyle=":", color="lightgreen")
+                                  ax=ax, marker="x", linewidth=1.5, linestyle=":", color="orange")
                     ax.set_xlabel("")
                     ax.set_ylabel("Score")
                     ax.set_title("Actual vs Predicted Sleep Score (Test Set)", fontweight="bold", fontsize=14, pad=15)
@@ -1607,6 +1646,19 @@ with tab6:
                     ax.legend(loc="lower left", fontsize=7)
                     st.pyplot(fig)
                     st.markdown(f"**Out-of-sample Test R² (trained on train set):** {r2_test_linear:.3f}")
+
+                    fig, ax = plt.subplots(figsize=(10,5))
+                    sns.scatterplot(data=filtered_test, x="Score", y="Predicted_Score_Linear_Test_Data", ax=ax, color="purple", alpha=0.7, 
+                                    hue="Quality", palette="viridis", legend="full")
+                    sns.lineplot(data=filtered_test, x="Score", y="Score", ax=ax, color="red", linestyle="--", label="Ideal Fit")
+                    ax.axvline(x=80, color="grey", linestyle=":", label="Good Quality Threshold")
+                    ax.axvline(x=90, color="grey", linestyle=":", label="Excellent Quality Threshold")
+                    ax.set_title("Predicted vs Actual Sleep Score (Test Set)", fontweight="bold", fontsize=14, pad=15)
+                    ax.set_xlabel("Actual Sleep Score")
+                    ax.set_ylabel("Predicted Sleep Score")
+                    sns.despine(ax=ax)
+                    ax.legend(loc="lower right", fontsize=7)
+                    st.pyplot(fig)
 
             #----------------------------- RESIDUALS ANALYSIS -----------------------------
             with st.expander("📊 Residuals Analysis", expanded=False):
