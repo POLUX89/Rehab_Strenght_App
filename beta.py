@@ -1096,7 +1096,7 @@ with tab5:
         "RPE": "mean",
         "est_1RM": "mean"})
     recovery_exercise = pd.merge(recovery, workouts_daily, on="Date", how="left").sort_values("Date")
-    recovery_exercise["Exercise_Done"] = recovery_exercise["VOLUME"].notna().astype(int)
+    recovery_exercise["Exercise_Done"] = recovery_exercise["VOLUME"].fillna(0).gt(0).astype(int)
     recovery_exercise_done = recovery_exercise[recovery_exercise["Exercise_Done"] == 1].copy()
     recovery_exercise_notdone = recovery_exercise[recovery_exercise["Exercise_Done"] == 0].copy()
     #-----------------------------
@@ -1112,7 +1112,9 @@ with tab5:
     trim_mean_val = stats.trim_mean(picked_col.dropna(), 0.1) if picked_col is not None else None
     n = picked_col.dropna().shape[0] 
     trim_mean = stats.trim_mean(picked_col.dropna(), 0.1) if picked_col is not None else None
-    cv = (std_val / mean_val)
+    cv = std_val / mean_val if mean_val not in (0, None) and not pd.isna(mean_val) else np.nan
+    col_pvalue, col_inter = normality_test(picked_col) if picked_col is not None else (None, None)
+    #------------------------------------- LOCATION & VARIABILITY METRICS ----------------------------------------
     with st.expander("🎯 Location & Variability Metrics", expanded=False):
         st.subheader("🎯 Location & Variability Metrics")
         c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -1145,7 +1147,7 @@ with tab5:
                 cecdf_50 = compute_ecdf(picked_col.dropna(), median_val, complementary=complementary)
                 cecdf_75 = compute_ecdf(picked_col.dropna(), perc_75, complementary=complementary)
                 cecdf_90 = compute_ecdf(picked_col.dropna(), perc_90, complementary=complementary)
-                sns.ecdfplot(data=recovery, x=picked_col.dropna(), label=f"Empirical CDF {check_metric}", 
+                sns.ecdfplot(data=recovery, x=check_metric, label=f"Empirical CDF {check_metric}", 
                             color="green", complementary=complementary, ax=ax)
                 plt.axvline(mean_val, color="blue", linestyle="--", label=f"Mean: {mean_val:.2f}", linewidth=0.5)
                 plt.axvline(median_val, color="lightseagreen", linestyle=":", label=f"50th Percentile: {median_val:.2f}", linewidth=1)
@@ -1183,7 +1185,7 @@ with tab5:
     #------------------------------------- NORMALITY TEST & VISUALS ----------------------------------------
     with st.expander("🔍 Normality Test for Recovery", expanded=False):
         st.subheader("🔍 Normality Test for Recovery")
-        col_pvalue, col_inter = normality_test(picked_col) if picked_col is not None else (None, None)
+        
         # Interpretation
         if col_pvalue is not None and col_pvalue > 0.05:
             st.success(f"Shapiro Wilk Test: {check_metric} appears to be normally distributed (p={col_pvalue:.3f}). You can use parametric tests.")
@@ -1252,7 +1254,7 @@ with tab5:
             sns.despine(ax=ax)
             ax.tick_params(axis='x', rotation=45)
             st.pyplot(fig)
-    # Outliers detection
+    # ------------------------------------- OUTLIERS DETECTION ----------------------------------------
     with st.expander("🧪 Outliers Detection", expanded=False):
         st.subheader("🧪 Outliers Detection")
         outliers_iqr = outlier_dectection_iqr(picked_col) if picked_col is not None else pd.Series(dtype=float)
@@ -1276,7 +1278,7 @@ with tab5:
             options = ["One-sample t-test", "Independent t-test"]
             choice = st.segmented_control(
                 "Select test to perform:",
-                options=options)
+                options=options, key="parametric_tests_control")
             if choice == "One-sample t-test":
                 c1, c2 = st.columns(2)
                 with c1:
@@ -1314,7 +1316,7 @@ with tab5:
                         popmean = st.number_input("Enter population mean to compare against:", value=float(mean_val) if mean_val is not None and not pd.isna(mean_val) else 0.0)
                         alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
                         ttest_res = stats.ttest_1samp(group, popmean, alternative=alternative)
-                        button_run = st.button("Run One-sample t-test")
+                        button_run = st.button("Run One-sample t-test", key="one_sample_ttest_button")
                         if button_run:
                             st.write(f"t-statistic: {ttest_res.statistic:.3f}," f" p-value: {ttest_res.pvalue:.3f}")
                             if ttest_res.pvalue < 0.05:
@@ -1323,7 +1325,7 @@ with tab5:
                                 st.info("Fail to reject the null hypothesis at α=0.05 level.")
                 with c2:
                     fig, ax = plt.subplots(figsize=(7,5))
-                    sns.kdeplot(group, color="lightblue", label="Exercise Days", ax=ax)
+                    sns.kdeplot(group, color="lightblue", label=f"{option_df}", ax=ax)
                     ax.axvline(group.mean(), color="blue", linestyle="--", label=f"Exercise Mean: {group.mean():.2f}")
                     ax.axvline(popmean, color="red", linestyle="--", label=f"Population Mean: {popmean:.2f}")
                     sns.despine(ax=ax)
@@ -1344,7 +1346,7 @@ with tab5:
                     st.write("Δ mean (ex - rest):", float(group1.mean() - group2.mean()))
                     alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
                     ttest2_res = stats.ttest_ind(group1, group2, alternative=alternative, equal_var=False)
-                    button_run2 = st.button("Run Independent t-test")
+                    button_run2 = st.button("Run Independent t-test", key="independent_ttest_button")
                     if button_run2:
                         st.write(f"t-statistic: {ttest2_res.statistic:.3f}," f" p-value: {ttest2_res.pvalue:.3f}")
                         if ttest2_res.pvalue < 0.05:
@@ -1374,26 +1376,46 @@ with tab5:
                 # Align pairs by dropping rows where either metric is NaN
                 df_pair = recovery[[check_metric, col2]].dropna()
                 st.info(f"Using {df_pair.shape[0]} paired observations for correlation.")
+                npairs = df_pair.shape[0]
+                if npairs < 500:
+                    st.warning("Spearman correlation is accurate for large samples (over 500 samples). For smaller samples, interpret results with caution.", icon="⚠️")
                 if df_pair.shape[0] < 2:
                     st.warning("Need at least 2 paired observations to compute correlation.")
                 else:
                     x = df_pair[check_metric].astype(float)
                     y = df_pair[col2].astype(float)
                     try:
-                        corr_coef, p_value = stats.pearsonr(x, y)
+                        spearman_corr = stats.spearmanr(x, y)
                     except Exception as e:
-                        st.error(f"Could not compute Pearson correlation: {e}")
+                        st.error(f"Could not compute Spearman correlation: {e}")
                     else:
-                        button_run = st.button("Run Pearson Correlation")
+                        button_run = st.button("Run Spearman Correlation", key="spearman_corr_button")
                         if button_run:
-                            st.write(f"Correlation coefficient: {corr_coef:.3f}, p-value: {p_value:.3f}")
-                            fig, ax = plt.subplots(figsize=(7,5))
-                            sns.heatmap(df_pair.corr(), annot=True, cmap="coolwarm", vmin=-1, vmax=1, ax=ax)
-                            st.pyplot(fig)
-                            if p_value < 0.05:
-                                st.success("Significant correlation at α=0.05 level.")
-                            else:
-                                st.info("No significant correlation at α=0.05 level.")    
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                coef_raw = spearman_corr.statistic
+                                p_raw = spearman_corr.pvalue
+
+                                coef_spearman = coef_raw[0, 1] if hasattr(coef_raw, "ndim") and coef_raw.ndim > 0 else coef_raw
+                                p_value_val = p_raw[0, 1] if hasattr(p_raw, "ndim") and p_raw.ndim > 0 else p_raw
+
+                                st.write(f"Spearman correlation coefficient: {coef_spearman}")
+                                st.write(f"p-value: {p_value_val}")
+
+                                if p_value_val < 0.05:
+                                    st.success("Reject the null hypothesis at α=0.05 level.")
+                                else:
+                                    st.info("Fail to reject the null hypothesis at α=0.05 level.")   
+                            with c2:
+                                fig, ax = plt.subplots(figsize=(7,5))
+                                sns.scatterplot(x=x, y=y, ax=ax, alpha=0.7)
+                                sns.regplot(x=x, y=y, lowess=True, scatter=False, ax=ax, color="orange")
+                                ax.set_title(f"Spearman correlation (Spearman coef = {coef_spearman:.2f}, p = {p_value_val:.3f})", fontsize=14, fontweight="bold", pad=15)
+                                ax.set_xlabel(check_metric)
+                                ax.set_ylabel(col2)
+                                sns.despine(ax=ax)
+                                st.pyplot(fig)            
+
             elif choice == "Mann-Whitney U test":
                 group1 = recovery_exercise_done[check_metric].dropna()
                 group2 = recovery_exercise_notdone[check_metric].dropna()
@@ -1406,7 +1428,7 @@ with tab5:
                     st.write("Rest median:", float(group2.median()))
                     st.write("Δ median (ex - rest):", float(group1.median() - group2.median()))
                     alternative = st.selectbox("Select alternative hypothesis:", ["two-sided", "less", "greater"])
-                    button_run2 = st.button("Run Mann-Whitney U test")
+                    button_run2 = st.button("Run Mann-Whitney U test", key="mwu_test_button")
                     if button_run2:
                         stats_mwu, pvalue_mwu = stats.mannwhitneyu(group1, group2, alternative=alternative)
                         st.write(f"U statistic: ", stats_mwu)
@@ -1454,7 +1476,6 @@ with tab6:
     df_model = recovery[["Date"] + predictors + ["Score", "Quality"]].dropna().copy()
     df_model = df_model.sort_values("Date")
 
-    st.dataframe(df_model.head(5))
     st.write("Modeling on: ", df_model.shape[0], "samples with no missing values in selected features and Score.")
     toggle_model = st.toggle("Linear Regression OR Logistic Regression", True, key="model_toggle")
 
@@ -1483,8 +1504,10 @@ with tab6:
             st.warning("MODEL ON TRAINING PHASE YET",icon="spinner")
             with st.expander("📐 OLS Linear Regression: Insights", expanded=False):
                 st.write("Used for prediction:", [f for f in predictors if f in df_model.columns])
-
-                train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
+                H=30    #Test size of 30 samples
+                train_lin = df_model.iloc[:-H].copy()
+                test_lin  = df_model.iloc[-H:].copy()
+                #train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
                 X = sm.add_constant(train_lin[predictors])
                 y = train_lin["Score"]
                 model_linear = sm.OLS(y, X).fit(cov_type='HC3')
@@ -1521,7 +1544,7 @@ with tab6:
                 c1, c2, c3, c4, c5, c6 = st.columns(6)
                 with c1:
                     st.metric("Test R²", f"{r2_test_linear:.3f}", delta=f"{r2_test_linear - r2_train_linear:.3f}", 
-                            delta_color="red" if r2_test_linear > r2_train_linear else "green")
+                            delta_color="green" if r2_test_linear > r2_train_linear else "red")
                 with c2:
                     st.metric("MSE", f"{mse_test_linear:.3f}", delta=f"{mse_test_linear - mse_train_linear:.3f}", 
                             delta_color="red" if mse_test_linear > mse_train_linear else "green",
@@ -1536,9 +1559,7 @@ with tab6:
                             delta_color="red" if rmse_test_linear > rmse_train_linear else "green", 
                             help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
                 with c5:
-                    st.metric("Samples", f"{test_lin.shape[0]}", delta=30-test_lin.shape[0], delta_color="inverse" if test_lin.shape[0] < 30 else "normal",
-                              delta_arrow="down" if test_lin.shape[0] < 30 else "up",
-                              help="Having at least 30 samples in test set is recommended for reliable evaluation.")
+                    st.metric("Samples", f"{test_lin.shape[0]}", help="The last 30 samples used for testing.")
                 with c6:
                     st.metric("Test Start Date", f"{test_lin.Date.min().date()}")
                 # ----------------------------- LEARNING CURVE ------------------------------------
@@ -1547,7 +1568,7 @@ with tab6:
                     with c1:
 
                         st.subheader("📊 Learning Curve Metrics at Key Sample Sizes")
-                        sample_sizes = range(20, n, 10)
+                        sample_sizes = range(20, 160, 10)
                         results = []
 
                         for sample in sample_sizes:
@@ -1578,13 +1599,13 @@ with tab6:
                         samples = st.checkbox("Show all values for learning curve (not forecast or extrapolated) ?:", value=True, key="learning_curve_future_values_checkbox")
                         fig, ax = plt.subplots(figsize=(10,5))
                         if samples:
-                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Train {metric}",  label=f"Train {metric}", ax=ax, color="blue", linestyle=":", linewidth=1)                        
-                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Test {metric}",  label=f"Test {metric}", ax=ax, color="orange", linewidth=1)
+                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Train {metric}",  label=f"Train {metric}", ax=ax, color="lightblue", linestyle=":", linewidth=1, marker="o", markersize=4)                        
+                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Test {metric}",  label=f"Test {metric}", ax=ax, color="orange", linewidth=1, marker="x", markersize=4)
                             ax.axvspan(xmin=40, xmax=n, color="lightgrey", alpha=0.2, label="Current Region")
                         else:
                             filtered_lc = learning_curve_df.loc[learning_curve_df.index <= n]
-                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Train {metric}", label=f"Train {metric}", ax=ax, color="blue", linestyle=":", linewidth=1)                
-                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Test {metric}", label=f"Test {metric}", ax=ax, color="orange", linewidth=1)
+                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Train {metric}", label=f"Train {metric}", ax=ax, color="lightblue", linestyle=":", linewidth=1, marker="o", markersize=2)                
+                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Test {metric}", label=f"Test {metric}", ax=ax, color="orange", linewidth=1, marker="x")
 
 
                         ax.axvline(x=n, color="white", linestyle="--", label="Current Sample Size")
@@ -1595,14 +1616,21 @@ with tab6:
                         ax.legend(loc="best", fontsize=7)
                         sns.despine(ax=ax)
                         st.pyplot(fig)
+
+                        for params in model_linear.params.index:
+                            if model_linear.pvalues[params] < 0.05:
+                                st.success(f"{params} Coeff: {model_linear.params[params]:.4f} P-value: {model_linear.pvalues[params]:.4f} (Significant at α=0.05)" )
+                            else:
+                                st.warning(f"{params} Coeff: {model_linear.params[params]:.4f} P-value: {model_linear.pvalues[params]:.4f}" )
      
                 # ----------------------------- PREDICTIONS DATAFRAME -----------------------------
                 df_model["Predicted_Score_Linear"] = model_linear.predict(sm.add_constant(df_model[predictors]))
                 df_model["Predicted_Score_Linear_Test_Data"] = np.nan
                 df_model.loc[test_lin.index, "Predicted_Score_Linear_Test_Data"] = model_linear.predict(
                     sm.add_constant(test_lin[predictors], has_constant="add"))
+                df_model["Residuals_Linear"] = df_model["Score"] - df_model["Predicted_Score_Linear"]
                 with st.expander("🗂️ Predictions Dataframe", expanded=False):
-                    st.dataframe(df_model[["Date", "Score", "Predicted_Score_Linear", "Predicted_Score_Linear_Test_Data"]].sort_values("Date"))
+                    st.dataframe(df_model[["Date", "Score", "Predicted_Score_Linear", "Predicted_Score_Linear_Test_Data", "Residuals_Linear"]].sort_values("Date"))
                 # ----------------------------- MODEL SUMMARY & VISUALIZATIONS -----------------------------
             with st.expander("ℹ️ Model Summary", expanded=False):
                 c1, c2 = st.columns(2)
@@ -1865,10 +1893,10 @@ with tab6:
 
     else:   #Toggle Logistic Regression Selected
         st.info("Logistic Regression coming soon!")
-
+        '''
         recovery["Score_Binary"] = recovery["Quality"].apply(sleep_classifier)
         target = "Score_Binary"
-        predictors_logit = ["Stress_prev_day", "REM hrs", "Deep hrs"]
+        predictors_logit = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration"]
         df_model_logit = recovery[["Date"] + predictors_logit + [target]].dropna().copy()
         df_model_logit = df_model_logit.sort_values("Date")
         n = df_model_logit.shape[0]
@@ -1907,6 +1935,7 @@ with tab6:
             ax.set_title("ROC Curve")
             ax.legend()
             st.pyplot(fig)
+            '''
 st.caption(
     "Tip: If you only train 3–4 days/week, use weekly aggregation (Volume / mean Recovery / mean Sleep) "
     "to avoid the mismatch between daily sleep and training frequency."

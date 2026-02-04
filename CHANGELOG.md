@@ -10,6 +10,7 @@
 - ECDF and complementary ECDF on stats tab
 - Hypothesis test for normality improved
 - Learning curve in training phase for OLS model
+- Stat Tab: Spearman correlation fully deployed
 
 ## [2.2.0] - 2026/01/28
 -Stats tab
