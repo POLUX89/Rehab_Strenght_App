@@ -1385,7 +1385,8 @@ with tab5:
                     x = df_pair[check_metric].astype(float)
                     y = df_pair[col2].astype(float)
                     try:
-                        spearman_corr = stats.spearmanr(x, y)
+                        alternative = st.selectbox("Select alternative hypothesis for Spearman correlation:", ["two-sided", "less", "greater"], key="spearman_alternative_selectbox")
+                        spearman_corr = stats.spearmanr(x, y, alternative=alternative)
                     except Exception as e:
                         st.error(f"Could not compute Spearman correlation: {e}")
                     else:
@@ -1477,14 +1478,17 @@ with tab6:
     df_model = df_model.sort_values("Date")
 
     st.write("Modeling on: ", df_model.shape[0], "samples with no missing values in selected features and Score.")
-    toggle_model = st.toggle("Linear Regression OR Logistic Regression", True, key="model_toggle")
+    model_version = "1.0.0"
+    st.progress(text=f"Model Version: {model_version}", value=50)
 
     for col in predictors:
         if col not in df_model.columns:
             st.error(f"Predictor column '{col}' not found in data.")
             st.stop()
-
-    if toggle_model:    #Linear Regression Selected
+    models = st.segmented_control(
+        "Select Model Type:",
+        ["Linear Regression", "Logistic Regression"], key="model_type_control", default="Linear Regression")
+    if models == "Linear Regression":    #Linear Regression Selected
             #------------------------------FROZEN MODEL CONDITIONALS-----------------------------
         if "model_frozen" not in st.session_state:
             st.session_state.model_frozen = None
@@ -1891,51 +1895,9 @@ with tab6:
                     ax.tick_params(axis='x', rotation=45)
                     st.pyplot(fig)
 
-    else:   #Toggle Logistic Regression Selected
+    elif models == "Logistic Regression":   #Toggle Logistic Regression Selected
         st.info("Logistic Regression coming soon!")
-        '''
-        recovery["Score_Binary"] = recovery["Quality"].apply(sleep_classifier)
-        target = "Score_Binary"
-        predictors_logit = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration"]
-        df_model_logit = recovery[["Date"] + predictors_logit + [target]].dropna().copy()
-        df_model_logit = df_model_logit.sort_values("Date")
-        n = df_model_logit.shape[0]
 
-        if "logit_frozen" not in st.session_state:
-            st.session_state.logit_frozen = None
-        if "logit_freeze_date" not in st.session_state:
-            st.session_state.logit_freeze_date = None
-        if "logit_freeze_predictors" not in st.session_state:
-            st.session_state.logit_freeze_predictors = None
-        # ---------------------------------LOGIT ON TRAINING PHASE-----------------------------
-        if (st.session_state.logit_frozen is None) and (n < 150):
-            st.warning("MODEL ON TRAINING PHASE YET",icon="spinner")
-            st.dataframe(df_model_logit)
-            st.write("Modeling on: ", n, "samples with no missing values in selected features and Score_Binary.")
-            train_logit, test_logit = train_test_split(df_model_logit, test_size=0.2, shuffle=False, stratify=None)
-            st.write(f"Training samples: {train_logit.shape[0]}, Test samples: {test_logit.shape[0]}")
-            X_logit = sm.add_constant(train_logit[predictors_logit], has_constant="add")
-            y_logit = train_logit[target]
-            model_logit = sm.Logit(y_logit, X_logit).fit()
-            st.text(model_logit.summary().as_text())
-
-            # Predictions on test set
-            threshold= 0.5
-            test_logit["yhat_logit"] = model_logit.predict(sm.add_constant(test_logit[predictors_logit], has_constant="add")).copy()
-            st.dataframe(test_logit[["Date", target, "yhat_logit"]])
-            st.info(f"LOGIT TEST MEAN: {test_logit['yhat_logit'].mean()}")
-            st.write("ROC SCORE:" , roc_auc_score(test_logit[target], test_logit["yhat_logit"]))
-            st.write("ACCURACY SCORE:", accuracy_score(test_logit[target], (test_logit["yhat_logit"] >= threshold).astype(int)))
-            fpr, tpr, thresholds = roc_curve(test_logit[target], test_logit["yhat_logit"])
-            fig, ax = plt.subplots(figsize=(10,4))
-            ax.plot(fpr, tpr, label="ROC Curve")
-            ax.plot([0, 1], [0, 1], linestyle="--", color="gray")
-            ax.set_xlabel("False Positive Rate")
-            ax.set_ylabel("True Positive Rate")
-            ax.set_title("ROC Curve")
-            ax.legend()
-            st.pyplot(fig)
-            '''
 st.caption(
     "Tip: If you only train 3–4 days/week, use weekly aggregation (Volume / mean Recovery / mean Sleep) "
     "to avoid the mismatch between daily sleep and training frequency."

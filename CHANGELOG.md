@@ -1,5 +1,5 @@
 # Changelog
-## [2.3.0] -2026/xx/xx
+## [2.3.0] -2026/02/04
 -Toggle button to change between OLS and Logit
 - OLS linear regression training below 150 samples
 - OLS frozen at 150 samples
