@@ -52,6 +52,12 @@ The app integrates **three independent data sources**:
 - Components such as HRV, stress, resting heart rate
 - Transparent visualization of trends and variability
 
+### Stats
+- Location estimate
+- Variability estimate
+- Outliers detection
+- Hypothesis testing
+
 ---
 
 ## 📊 Key features
