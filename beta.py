@@ -21,7 +21,7 @@ from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix, cla
 st.set_page_config(page_title="Rehab Strength APP", layout="wide")
 st.title("🏋️‍♂️ Rehab Strength APP", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
-app_version = "V2.3.0"
+app_version = "V2.3.1"
 st.caption(f"App Version: {app_version} • Updated: {datetime.now():%Y-%m-%d %H:%M}")
 st.markdown("---")
 
@@ -1114,10 +1114,10 @@ with tab5:
     trim_mean = stats.trim_mean(picked_col.dropna(), 0.1) if picked_col is not None else None
     cv = std_val / mean_val if mean_val not in (0, None) and not pd.isna(mean_val) else np.nan
     col_pvalue, col_inter = normality_test(picked_col) if picked_col is not None else (None, None)
-    #------------------------------------- LOCATION & VARIABILITY METRICS ----------------------------------------
-    with st.expander("🎯 Location & Variability Metrics", expanded=False):
-        st.subheader("🎯 Location & Variability Metrics")
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
+    #------------------------------------- 4 MOMENTS OF DATA ----------------------------------------
+    with st.expander("🎯 Four Moments of Statistics", expanded=False):
+        st.subheader("🎯 Four Moments of Statistics")
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
         series_for_chart = picked_col.dropna().astype(float).tail(30).tolist() if picked_col is not None else []
         c1.metric("Median", f"{median_val:.2f}" if median_val is not None else "—")
         c2.metric(
@@ -1133,6 +1133,10 @@ with tab5:
         c6.metric("Coef of Var (CV)", "Good" if cv is not None and cv < 0.1 else "Acceptable" if cv is not None and cv < 0.2 else "High", 
                   delta=f"{round(cv*100, 2)} %",delta_color="normal" if cv is not None and cv < 0.1 else "orange" if cv is not None and cv < 0.2 else "inverse" if cv is not None else None,
                   help="CV <10% is considered good stability; 10-20% acceptable; >20% high variability.")
+        c7.metric("Skewness", f"{picked_col.skew():.2f}" if picked_col is not None else "—", help="Skewness indicates asymmetry. >0 means right-skewed, <0 means left-skewed.")
+        c8.metric("Kurtosis", f"{picked_col.kurtosis():.2f}" if picked_col is not None else "—", help="Kurtosis indicates the 'tailedness' of the distribution. >3 means heavy tails, <3 means light tails.",
+                  delta="Leptokurtic" if picked_col is not None and picked_col.kurtosis() > 3 else "Platykurtic" if picked_col is not None and picked_col.kurtosis() < 3 else "Mesokurtic" if picked_col is not None else None,
+                  delta_arrow="off", delta_color="green" if picked_col is not None and picked_col.kurtosis() == 3 else "red" if picked_col is not None and picked_col.kurtosis() > 3 else "green" if picked_col is not None and picked_col.kurtosis() < 3 else None)
     #------------------------------------- EMPIRICAL CDF & PERCENTILES ----------------------------------------
     with st.expander("📊 Empirical CDF & Percentiles", expanded=False):
         st.subheader("📊 Empirical CDF & Percentiles")
@@ -1265,8 +1269,10 @@ with tab5:
         else:
             st.info(f"Detected {len(outliers_iqr)} outlier(s) in {check_metric} using IQR method.",
                     icon="ℹ️")
+            st.dataframe(outliers_iqr.to_frame(name=f"{check_metric} Value"))
             st.info(f"Detected {len(outliers_z)} outlier(s) in {check_metric} using Modified Z-Score method.",
                     icon="🚨")
+            st.dataframe(outliers_z.to_frame(name=f"{check_metric} Value"))
     
     #------------------------------------- HYPOTHESIS TESTING ----------------------------------------
     with st.expander("🛠️ Tests with rest days and exercise days", expanded=False):
@@ -1457,7 +1463,7 @@ with tab5:
                     sns.kdeplot(group1, color="lightblue", label="Exercise Days", ax=ax)
                     sns.kdeplot(group2, color="salmon", label="Rest Days", ax=ax)
                     sns.despine(ax=ax)
-                    plt.title(f"Distribution of {check_metric}")
+                    plt.title(f"Distribution of {check_metric}", fontsize=14, fontweight="bold", pad=15)
                     plt.xlabel(check_metric)
                     plt.ylabel("Density")
                     plt.legend(loc="best")
