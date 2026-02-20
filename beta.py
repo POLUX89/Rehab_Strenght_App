@@ -17,6 +17,8 @@ import scipy.stats as stats
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix, classification_report, roc_curve
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.stats.diagnostic import het_breuschpagan
 
 st.set_page_config(page_title="Rehab Strength APP", layout="wide")
 st.title("🏋️‍♂️ Rehab Strength APP", text_alignment="center")
@@ -1510,11 +1512,11 @@ with tab6:
                 st.session_state.freeze_predictors = None
                 st.rerun()
         #------------------------------OLS LINEAR REGRESSION TRAINING PHASE-----------------------------
-        if (st.session_state.model_frozen is None) and (n < 150):
+        if (st.session_state.model_frozen is None) and (n < 200):
             st.warning("MODEL ON TRAINING PHASE YET",icon="spinner")
             with st.expander("📐 OLS Linear Regression: Insights", expanded=False):
                 st.write("Used for prediction:", [f for f in predictors if f in df_model.columns])
-                H=30    #Test size of 30 samples
+                H= 40    #Test size of 40 samples
                 train_lin = df_model.iloc[:-H].copy()
                 test_lin  = df_model.iloc[-H:].copy()
                 #train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
@@ -1569,7 +1571,7 @@ with tab6:
                             delta_color="red" if rmse_test_linear > rmse_train_linear else "green", 
                             help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
                 with c5:
-                    st.metric("Samples", f"{test_lin.shape[0]}", help="The last 30 samples used for testing.")
+                    st.metric("Samples", f"{test_lin.shape[0]}", help="The last 40 samples used for testing.")
                 with c6:
                     st.metric("Test Start Date", f"{test_lin.Date.min().date()}")
                 # ----------------------------- LEARNING CURVE ------------------------------------
@@ -1698,6 +1700,50 @@ with tab6:
                     ax.legend(loc="lower right", fontsize=7)
                     st.pyplot(fig)
 
+            with st.expander("🔎 Model Diagnosis", expanded=False):
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.subheader("📊 Variance Inflation Factor (VIF)")
+                    vif_data = pd.DataFrame()
+                    vif_data["feature"] = X.columns
+                    vif_data["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+                    vif_data["Meaning"] = vif_data["VIF"].apply(lambda x: "Low multicollinearity" if x < 5 else ("Moderate multicollinearity" if x < 10 else "High multicollinearity"))
+                    st.dataframe(vif_data)
+
+                with c2:
+                    st.subheader("📏 Leverage")
+                    influence = model_linear.get_influence()
+                    leverage = influence.hat_matrix_diag
+                    threshold_leverage = 2 * (X.shape[1] + 1) / X.shape[0]
+                    high_leverage_points = np.where(leverage > threshold_leverage)[0]
+                    
+                    st.write(f"\nHigh leverage points (leverage > {threshold_leverage:.4f}): {high_leverage_points}")
+                    st.subheader("📏 Influential Observations (Cook's Distance)")
+                    influence = model_linear.get_influence()
+                    cooks_d, p_values = influence.cooks_distance
+
+                    threshold = 4 / len(y)
+                    influential = np.where(cooks_d > threshold)[0]
+                    st.write(f"\nInfluential points (Cook's D > 4/n={threshold:.4f}): {influential}")
+
+                    # --- Plot ---
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    ax.stem(range(len(cooks_d)), cooks_d, markerfmt=',', basefmt='gray')
+                    ax.axhline(threshold, color='red', linestyle='--', label=f"Threshold 4/n = {threshold:.4f}\nAmount of influences: {len(influential)}")
+
+                    for i in influential:
+                        ax.annotate(f"{i}", (i, cooks_d[i]), textcoords="offset points",
+                                    xytext=(0, 5), fontsize=8, color='red')
+                    ax.set_xlabel("Observation Index")
+                    ax.set_ylabel("Cook's Distance")
+                    ax.set_title("Cook's Distance — Influential Observations", fontsize=14, fontweight='bold', pad=15)
+                    ax.legend()
+                    sns.despine(ax=ax)
+                    plt.tight_layout()
+                    st.pyplot(fig)
+
+                    st.dataframe(train_lin.iloc[influential])
+
             #----------------------------- RESIDUALS ANALYSIS -----------------------------
             with st.expander("📊 Residuals Analysis", expanded=False):
                 option_residuals = ["On Train Set", "On Test Set", "Both"]
@@ -1713,6 +1759,14 @@ with tab6:
                     else:
                         st.info(f"Residuals do not appear to be normally distributed (p={pvalue_resid:.3f}).")
                     st.dataframe(fit_distribution(residuals_train_df["Residuals"]))
+                    st.subheader(" Breusch-Pagan Test for Heteroscedasticity")
+                    bp_test = het_breuschpagan(model_linear.resid, model_linear.model.exog)
+                    bp_labels = ['Lagrange multiplier statistic', 'p-value', 'f-value', 'f p-value']
+                    bp_results = dict(zip(bp_labels, bp_test))
+                    if bp_results['p-value'] < 0.05:
+                        st.warning(f"❌ Evidence of heteroscedasticity (p={bp_results['p-value']:.3f}). Consider using robust standard errors or transforming variables.", icon="⚠️")
+                    else:
+                        st.success(f"✅ No evidence of heteroscedasticity (p={bp_results['p-value']:.3f}).")
                     c1, c2 = st.columns(2)
                     with c1:
                         fig, ax = plt.subplots(figsize=(8,4))
@@ -1838,9 +1892,9 @@ with tab6:
                         st.pyplot(fig)
             
         # ------------------------------FROZEN MODEL DEPLOYMENT PHASE-----------------------------
-        elif (st.session_state.model_frozen is None) and (n >= 150):
+        elif (st.session_state.model_frozen is None) and (n >= 200):
             st.success("MODEL READY FOR DEPLOYMENT (FREEZING NOW)", icon="✅")
-            freeze_date = df_model.iloc[149]["Date"]  # Freeze after first 150 samples (0-149)
+            freeze_date = df_model.iloc[199]["Date"]  # Freeze after first 200 samples (0-199)
             frozen_df = df_model[df_model["Date"] <= freeze_date].copy()
 
             X_frozen = sm.add_constant(frozen_df[predictors])

@@ -2,7 +2,9 @@
 ## [2.3.1] -2026/02/xx
 Stats Tab
 - Skewness & Kurtosis added
--Outliers values shown
+- Outliers values shown
+Models Tab
+- Model diagnostic (vih, cook`s distance, leverage)
 
 ## [2.3.0] -2026/02/04
 -Toggle button to change between OLS and Logit
