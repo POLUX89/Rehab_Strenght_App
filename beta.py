@@ -17,11 +17,13 @@ import scipy.stats as stats
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix, classification_report, roc_curve
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.stats.diagnostic import het_breuschpagan
 
 st.set_page_config(page_title="Rehab Strength APP", layout="wide")
 st.title("🏋️‍♂️ Rehab Strength APP", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
-app_version = "V2.3.0"
+app_version = "V2.3.1"
 st.caption(f"App Version: {app_version} • Updated: {datetime.now():%Y-%m-%d %H:%M}")
 st.markdown("---")
 
@@ -1114,10 +1116,10 @@ with tab5:
     trim_mean = stats.trim_mean(picked_col.dropna(), 0.1) if picked_col is not None else None
     cv = std_val / mean_val if mean_val not in (0, None) and not pd.isna(mean_val) else np.nan
     col_pvalue, col_inter = normality_test(picked_col) if picked_col is not None else (None, None)
-    #------------------------------------- LOCATION & VARIABILITY METRICS ----------------------------------------
-    with st.expander("🎯 Location & Variability Metrics", expanded=False):
-        st.subheader("🎯 Location & Variability Metrics")
-        c1, c2, c3, c4, c5, c6 = st.columns(6)
+    #------------------------------------- 4 MOMENTS OF DATA ----------------------------------------
+    with st.expander("🎯 Four Moments of Statistics", expanded=False):
+        st.subheader("🎯 Four Moments of Statistics")
+        c1, c2, c3, c4, c5, c6, c7, c8 = st.columns(8)
         series_for_chart = picked_col.dropna().astype(float).tail(30).tolist() if picked_col is not None else []
         c1.metric("Median", f"{median_val:.2f}" if median_val is not None else "—")
         c2.metric(
@@ -1133,6 +1135,10 @@ with tab5:
         c6.metric("Coef of Var (CV)", "Good" if cv is not None and cv < 0.1 else "Acceptable" if cv is not None and cv < 0.2 else "High", 
                   delta=f"{round(cv*100, 2)} %",delta_color="normal" if cv is not None and cv < 0.1 else "orange" if cv is not None and cv < 0.2 else "inverse" if cv is not None else None,
                   help="CV <10% is considered good stability; 10-20% acceptable; >20% high variability.")
+        c7.metric("Skewness", f"{picked_col.skew():.2f}" if picked_col is not None else "—", help="Skewness indicates asymmetry. >0 means right-skewed, <0 means left-skewed.")
+        c8.metric("Kurtosis", f"{picked_col.kurtosis():.2f}" if picked_col is not None else "—", help="Kurtosis indicates the 'tailedness' of the distribution. >3 means heavy tails, <3 means light tails.",
+                  delta="Leptokurtic" if picked_col is not None and picked_col.kurtosis() > 3 else "Platykurtic" if picked_col is not None and picked_col.kurtosis() < 3 else "Mesokurtic" if picked_col is not None else None,
+                  delta_arrow="off", delta_color="green" if picked_col is not None and picked_col.kurtosis() == 3 else "red" if picked_col is not None and picked_col.kurtosis() > 3 else "green" if picked_col is not None and picked_col.kurtosis() < 3 else None)
     #------------------------------------- EMPIRICAL CDF & PERCENTILES ----------------------------------------
     with st.expander("📊 Empirical CDF & Percentiles", expanded=False):
         st.subheader("📊 Empirical CDF & Percentiles")
@@ -1265,8 +1271,10 @@ with tab5:
         else:
             st.info(f"Detected {len(outliers_iqr)} outlier(s) in {check_metric} using IQR method.",
                     icon="ℹ️")
+            st.dataframe(outliers_iqr.to_frame(name=f"{check_metric} Value"))
             st.info(f"Detected {len(outliers_z)} outlier(s) in {check_metric} using Modified Z-Score method.",
                     icon="🚨")
+            st.dataframe(outliers_z.to_frame(name=f"{check_metric} Value"))
     
     #------------------------------------- HYPOTHESIS TESTING ----------------------------------------
     with st.expander("🛠️ Tests with rest days and exercise days", expanded=False):
@@ -1457,7 +1465,7 @@ with tab5:
                     sns.kdeplot(group1, color="lightblue", label="Exercise Days", ax=ax)
                     sns.kdeplot(group2, color="salmon", label="Rest Days", ax=ax)
                     sns.despine(ax=ax)
-                    plt.title(f"Distribution of {check_metric}")
+                    plt.title(f"Distribution of {check_metric}", fontsize=14, fontweight="bold", pad=15)
                     plt.xlabel(check_metric)
                     plt.ylabel("Density")
                     plt.legend(loc="best")
@@ -1504,11 +1512,11 @@ with tab6:
                 st.session_state.freeze_predictors = None
                 st.rerun()
         #------------------------------OLS LINEAR REGRESSION TRAINING PHASE-----------------------------
-        if (st.session_state.model_frozen is None) and (n < 150):
+        if (st.session_state.model_frozen is None) and (n < 200):
             st.warning("MODEL ON TRAINING PHASE YET",icon="spinner")
             with st.expander("📐 OLS Linear Regression: Insights", expanded=False):
                 st.write("Used for prediction:", [f for f in predictors if f in df_model.columns])
-                H=30    #Test size of 30 samples
+                H= 40    #Test size of 40 samples
                 train_lin = df_model.iloc[:-H].copy()
                 test_lin  = df_model.iloc[-H:].copy()
                 #train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
@@ -1563,7 +1571,7 @@ with tab6:
                             delta_color="red" if rmse_test_linear > rmse_train_linear else "green", 
                             help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
                 with c5:
-                    st.metric("Samples", f"{test_lin.shape[0]}", help="The last 30 samples used for testing.")
+                    st.metric("Samples", f"{test_lin.shape[0]}", help="The last 40 samples used for testing.")
                 with c6:
                     st.metric("Test Start Date", f"{test_lin.Date.min().date()}")
                 # ----------------------------- LEARNING CURVE ------------------------------------
@@ -1692,6 +1700,50 @@ with tab6:
                     ax.legend(loc="lower right", fontsize=7)
                     st.pyplot(fig)
 
+            with st.expander("🔎 Model Diagnosis", expanded=False):
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.subheader("📊 Variance Inflation Factor (VIF)")
+                    vif_data = pd.DataFrame()
+                    vif_data["feature"] = X.columns
+                    vif_data["VIF"] = [variance_inflation_factor(X.values, i) for i in range(X.shape[1])]
+                    vif_data["Meaning"] = vif_data["VIF"].apply(lambda x: "Low multicollinearity" if x < 5 else ("Moderate multicollinearity" if x < 10 else "High multicollinearity"))
+                    st.dataframe(vif_data)
+
+                with c2:
+                    st.subheader("📏 Leverage")
+                    influence = model_linear.get_influence()
+                    leverage = influence.hat_matrix_diag
+                    threshold_leverage = 2 * (X.shape[1] + 1) / X.shape[0]
+                    high_leverage_points = np.where(leverage > threshold_leverage)[0]
+                    
+                    st.write(f"\nHigh leverage points (leverage > {threshold_leverage:.4f}): {high_leverage_points}")
+                    st.subheader("📏 Influential Observations (Cook's Distance)")
+                    influence = model_linear.get_influence()
+                    cooks_d, p_values = influence.cooks_distance
+
+                    threshold = 4 / len(y)
+                    influential = np.where(cooks_d > threshold)[0]
+                    st.write(f"\nInfluential points (Cook's D > 4/n={threshold:.4f}): {influential}")
+
+                    # --- Plot ---
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    ax.stem(range(len(cooks_d)), cooks_d, markerfmt=',', basefmt='gray')
+                    ax.axhline(threshold, color='red', linestyle='--', label=f"Threshold 4/n = {threshold:.4f}\nAmount of influences: {len(influential)}")
+
+                    for i in influential:
+                        ax.annotate(f"{i}", (i, cooks_d[i]), textcoords="offset points",
+                                    xytext=(0, 5), fontsize=8, color='red')
+                    ax.set_xlabel("Observation Index")
+                    ax.set_ylabel("Cook's Distance")
+                    ax.set_title("Cook's Distance — Influential Observations", fontsize=14, fontweight='bold', pad=15)
+                    ax.legend()
+                    sns.despine(ax=ax)
+                    plt.tight_layout()
+                    st.pyplot(fig)
+
+                    st.dataframe(train_lin.iloc[influential])
+
             #----------------------------- RESIDUALS ANALYSIS -----------------------------
             with st.expander("📊 Residuals Analysis", expanded=False):
                 option_residuals = ["On Train Set", "On Test Set", "Both"]
@@ -1707,6 +1759,14 @@ with tab6:
                     else:
                         st.info(f"Residuals do not appear to be normally distributed (p={pvalue_resid:.3f}).")
                     st.dataframe(fit_distribution(residuals_train_df["Residuals"]))
+                    st.subheader(" Breusch-Pagan Test for Heteroscedasticity")
+                    bp_test = het_breuschpagan(model_linear.resid, model_linear.model.exog)
+                    bp_labels = ['Lagrange multiplier statistic', 'p-value', 'f-value', 'f p-value']
+                    bp_results = dict(zip(bp_labels, bp_test))
+                    if bp_results['p-value'] < 0.05:
+                        st.warning(f"❌ Evidence of heteroscedasticity (p={bp_results['p-value']:.3f}). Consider using robust standard errors or transforming variables.", icon="⚠️")
+                    else:
+                        st.success(f"✅ No evidence of heteroscedasticity (p={bp_results['p-value']:.3f}).")
                     c1, c2 = st.columns(2)
                     with c1:
                         fig, ax = plt.subplots(figsize=(8,4))
@@ -1832,9 +1892,9 @@ with tab6:
                         st.pyplot(fig)
             
         # ------------------------------FROZEN MODEL DEPLOYMENT PHASE-----------------------------
-        elif (st.session_state.model_frozen is None) and (n >= 150):
+        elif (st.session_state.model_frozen is None) and (n >= 200):
             st.success("MODEL READY FOR DEPLOYMENT (FREEZING NOW)", icon="✅")
-            freeze_date = df_model.iloc[149]["Date"]  # Freeze after first 150 samples (0-149)
+            freeze_date = df_model.iloc[199]["Date"]  # Freeze after first 200 samples (0-199)
             frozen_df = df_model[df_model["Date"] <= freeze_date].copy()
 
             X_frozen = sm.add_constant(frozen_df[predictors])
