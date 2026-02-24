@@ -1,5 +1,10 @@
 # Changelog
-## [2.3.1] -2026/02/xx
+## [2.3.2] -2026/03/xx
+- Ramsey reset Test on OLS (Linearity)
+- Durbin Watson Test (Autocorrelation)
+- OLS with polynomial
+
+## [2.3.1] -2026/02/21
 Stats Tab
 - Skewness & Kurtosis added
 - Outliers values shown
