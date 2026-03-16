@@ -3,6 +3,8 @@
 - Ramsey reset Test on OLS (Linearity)
 - Durbin Watson Test (Autocorrelation)
 - OLS with polynomial
+- Stress_sleep feature gathered and added to the model
+- Models included: Elastic Net, Ridge, Lasso, Decision Tree Regressor
 
 ## [2.3.1] -2026/02/21
 Stats Tab
