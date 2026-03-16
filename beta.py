@@ -2548,7 +2548,7 @@ with tab6:
                         st.rerun()
             #------------------------------DT REGRESSOR TRAINING PHASE-----------------------------
             if (st.session_state.model_frozen is None) and (n < 200):
-                @st.cache_data(show_spinner="Training Decision Tree...")
+ 
                 H = 40
                 predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration", "Stress_sleep"]
 
