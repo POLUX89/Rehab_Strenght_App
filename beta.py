@@ -2521,11 +2521,12 @@ with tab6:
             if models == "Decision Tree Regressor":  
                 H = 40
                 predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration", "Stress_sleep"]
-                train_df = df_model.iloc[:-H].copy()
-                test_df  = df_model.iloc[-H:].copy()
 
                 df_model = recovery[["Date"] + predictors + ["Score"]].dropna().copy()
                 df_model = df_model.sort_values("Date").reset_index(drop=True)
+
+                train_df = df_model.iloc[:-H].copy()
+                test_df  = df_model.iloc[-H:].copy()
 
                 X_train = train_df[predictors]
                 y_train = train_df["Score"]
@@ -2547,7 +2548,7 @@ with tab6:
                         st.rerun()
             #------------------------------DT REGRESSOR TRAINING PHASE-----------------------------
             if (st.session_state.model_frozen is None) and (n < 200):
-       
+                @st.cache_data(show_spinner="Training Decision Tree...")
                 H = 40
                 predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration", "Stress_sleep"]
 
