@@ -2570,8 +2570,8 @@ with tab6:
                 grid_tree = GridSearchCV(
                     estimator=full_tree,
                     param_grid={"ccp_alpha": ccp_alphas, 
-                                            "max_depth": np.linspace(1, 10, 10, dtype=int), 
-                                            "min_samples_leaf": np.linspace(1, 10, 10, dtype=int)},
+                                            "max_depth": [3, 5, 7, 10], 
+                                            "min_samples_leaf": [2, 5, 10]},
                     cv=tscv,
                     scoring="neg_mean_squared_error"
                 )
