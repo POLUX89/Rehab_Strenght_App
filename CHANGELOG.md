@@ -1,5 +1,5 @@
 # Changelog
-## [2.3.2] -2026/03/xx
+## [2.3.2] -2026/03/15
 - Ramsey reset Test on OLS (Linearity)
 - Durbin Watson Test (Autocorrelation)
 - OLS with polynomial

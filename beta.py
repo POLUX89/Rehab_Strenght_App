@@ -2644,7 +2644,7 @@ with tab6:
                 st.dataframe(importance.style.bar(subset=["Importance"], color="#FFA07A"), height=300)
 
                 plt.figure(figsize=(20, 10))
-                plot_tree(best_tree, feature_names=predictors, filled=True, node_ids=True, rounded=True, fontsize=8)
+                plot_tree(best_tree, feature_names=predictors, filled=False, node_ids=True, rounded=True, fontsize=8)
                 plt.title("Pruned Decision Tree", fontsize=16, fontweight="bold", pad=20)
                 plt.tight_layout()
                 st.pyplot(plt)
