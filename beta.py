@@ -2715,8 +2715,8 @@ with tab6:
                         ax.tick_params(axis='x', rotation=45)
                         st.pyplot(fig)
             #------------------------------RANDOM FOREST REGRESSOR TRAINING PHASE-----------------------------
-        elif models == "Decision Tree Regressor":   #Toggle DT REGRESSOR Selected
-            if models == "Decision Tree Regressor":  
+        elif models == "Random Forest Regressor":   #Toggle RF REGRESSOR Selected
+            if models == "Random Forest Regressor":  
                 H = 40
                 predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration", "Stress_sleep"]
 
@@ -2839,15 +2839,7 @@ with tab6:
                     }).sort_values("Importance", ascending=False)
                 st.dataframe(importance.style.bar(subset=["Importance"], color="#FFA07A"), height=300)
 
-                plt.figure(figsize=(20, 10))
-                plot_tree(best_rf, feature_names=predictors, filled=False, node_ids=True, rounded=True, fontsize=8)
-                plt.title("Pruned Decision Tree", fontsize=16, fontweight="bold", pad=20)
-                plt.tight_layout()
-                st.pyplot(plt)
-
-
-            
-
+        
 st.caption(
     "Tip: If you only train 3–4 days/week, use weekly aggregation (Volume / mean Recovery / mean Sleep) "
     "to avoid the mismatch between daily sleep and training frequency."
