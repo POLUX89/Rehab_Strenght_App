@@ -24,6 +24,7 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor, plot_tre
 from sklearn.linear_model import LinearRegression, LogisticRegression, Ridge, Lasso, ElasticNet
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 
 
 st.set_page_config(page_title="Rehab Strength APP", layout="wide")
@@ -1502,7 +1503,7 @@ with tab6:
     if types == "Regression":
         models = st.segmented_control(
             "Select Model Type:",
-            ["Linear Regression", "Elastic Net", "Ridge Regression", "Lasso", "Decision Tree Regressor"], key="model_type_control", default="Linear Regression")
+            ["Linear Regression", "Elastic Net", "Ridge Regression", "Lasso", "Decision Tree Regressor", "Random Forest Regressor"], key="model_type_control", default="Linear Regression")
         if models == "Linear Regression":    #Linear Regression Selected
                 #------------------------------FROZEN MODEL CONDITIONALS-----------------------------
             if "model_frozen" not in st.session_state:
@@ -2713,6 +2714,137 @@ with tab6:
                         ax.set_title("Post-freeze residuals over time")
                         ax.tick_params(axis='x', rotation=45)
                         st.pyplot(fig)
+            #------------------------------RANDOM FOREST REGRESSOR TRAINING PHASE-----------------------------
+        elif models == "Decision Tree Regressor":   #Toggle DT REGRESSOR Selected
+            if models == "Decision Tree Regressor":  
+                H = 40
+                predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration", "Stress_sleep"]
+
+                df_model = recovery[["Date"] + predictors + ["Score"]].dropna().copy()
+                df_model = df_model.sort_values("Date").reset_index(drop=True)
+
+                train_df = df_model.iloc[:-H].copy()
+                test_df  = df_model.iloc[-H:].copy()
+
+                X_train = train_df[predictors]
+                y_train = train_df["Score"]
+                X_test = test_df[predictors]
+                y_test = test_df["Score"]
+                    #------------------------------FROZEN MODEL CONDITIONALS-----------------------------
+                if "model_frozen" not in st.session_state:
+                    st.session_state.model_frozen = None
+                if "freeze_date" not in st.session_state:
+                    st.session_state.freeze_date = None
+                if "freeze_predictors" not in st.session_state:
+                    st.session_state.freeze_predictors = None
+                n = df_model.shape[0]
+                if st.session_state.model_frozen is not None:
+                    if st.button("Reset frozen model (session)"):
+                        st.session_state.model_frozen = None
+                        st.session_state.freeze_date = None
+                        st.session_state.freeze_predictors = None
+                        st.rerun()
+            #------------------------------RANDOM FOREST REGRESSOR TRAINING PHASE-----------------------------
+            if (st.session_state.model_frozen is None) and (n < 200):
+ 
+                H = 40
+                predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration", "Stress_sleep"]
+
+                df_model = recovery[["Date"] + predictors + ["Score"]].dropna().copy()
+                df_model = df_model.sort_values("Date").reset_index(drop=True)
+
+                train_df = df_model.iloc[:-H].copy()
+                test_df  = df_model.iloc[-H:].copy()
+
+                X_train = train_df[predictors]
+                y_train = train_df["Score"]
+                X_test = test_df[predictors]
+                y_test = test_df["Score"]
+
+                tscv = TimeSeriesSplit(n_splits=5, gap=2)
+                grid_rf = GridSearchCV(
+                    estimator=RandomForestRegressor(n_estimators=100, random_state=42, oob_score=False),
+                    param_grid={"max_depth": [3, 5, 7, 10], 
+                                "min_samples_leaf": [2, 5, 10],
+                                "max_features": ["sqrt", "log2", 0.33, 0.5, 1]},
+                    cv=tscv,
+                    scoring="neg_mean_squared_error",
+                    n_jobs=-1 #All the CPU cores available are used to run the grid search in parallel
+                )
+                grid_rf.fit(X_train, y_train)
+
+                best_rf = grid_rf.best_estimator_
+                y_pred_train_rf = best_rf.predict(X_train)
+                y_pred_test_rf = best_rf.predict(X_test)
+
+                    # ----------------------------- PERFORMANCE METRICS -----------------------------
+                r2_train_rf = r2_score(y_train, y_pred_train_rf)
+                r2_test_rf = r2_score(y_test, y_pred_test_rf)
+                mse_train_rf = mean_squared_error(y_train, y_pred_train_rf)
+                mse_test_rf = mean_squared_error(y_test, y_pred_test_rf)
+                mae_train_rf = mean_absolute_error(y_train, y_pred_train_rf)
+                mae_test_rf = mean_absolute_error(y_test, y_pred_test_rf)
+                rmse_train_rf = np.sqrt(mse_train_rf)
+                rmse_test_rf = np.sqrt(mse_test_rf)
+
+                with st.expander(" Model Metrics", expanded=True):
+                    st.subheader("📈 Train Set Performance")
+                    c1, c2, c3, c4, c5, c6 = st.columns(6)
+                    with c1:
+                        st.metric("Train R²", f"{r2_train_rf:.3f}")
+                    with c2:
+                        st.metric("MSE", f"{mse_train_rf:.3f}")
+                    with c3:
+                        st.metric("MAE", f"{mae_train_rf:.3f}")
+                    with c4:
+                        st.metric("RMSE", f"{rmse_train_rf:.3f}")
+                    with c5:
+                        st.metric("Samples", f"{train_df.shape[0]}")
+                    with c6:
+                        st.metric("Training Start Date", f"{train_df.Date.min().date()}")
+
+                    st.subheader("📉 Test Set Performance")
+                    c1, c2, c3, c4, c5, c6 = st.columns(6)
+                        
+                    with c1:
+                        st.metric("Test R²", f"{r2_test_rf:.3f}", delta=f"{r2_test_rf - r2_train_rf:.3f}", 
+                                delta_color="green" if r2_test_rf > r2_train_rf else "red")
+                    with c2:
+                        st.metric("MSE", f"{mse_test_rf:.3f}", delta=f"{mse_test_rf - mse_train_rf:.3f}", 
+                                delta_color="red" if mse_test_rf > mse_train_rf else "green",
+                                    help="Mean Squared Error (MSE): lower values indicate better fit.\
+                                        Penalizes larger errors more heavily.")
+                    with c3:
+                        st.metric("MAE", f"{mae_test_rf:.3f}", delta=f"{mae_test_rf - mae_train_rf:.3f}", 
+                                    delta_color="red" if mae_test_rf > mae_train_rf else "green",
+                                    help="Mean Absolute Error (MAE): lower values indicate better fit.")
+                    with c4:
+                        st.metric("RMSE", f"{rmse_test_rf:.3f}", delta=f"{rmse_test_rf - rmse_train_rf:.3f}", 
+                                    delta_color="red" if rmse_test_rf > rmse_train_rf else "green", 
+                                    help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
+                    with c5:
+                        st.metric("Samples", f"{test_df.shape[0]}", help="The last 40 samples used for testing.")
+                    with c6:
+                        st.metric("Test Start Date", f"{test_df.Date.min().date()}")
+                '''with st.expander("📊 Model Insights", expanded=True):
+                    st.info(body=f"Best parameter ccp_alpha: {grid_tree.best_params_['ccp_alpha']}")
+                    st.info(body=f"Best parameter max_depth: {grid_tree.best_params_['max_depth']}")
+                    st.info(body=f"Best parameter min_samples_leaf: {grid_tree.best_params_['min_samples_leaf']}")
+                    st.info(body=f"Best Score (MSE): {-round(grid_tree.best_score_, 4)}")
+                    st.caption("Note: Decision Tree Regressor does not perform feature selection by shrinking coefficients to zero. The features listed above are those that were retained in the final model after regularization.")'''
+
+                importance = pd.DataFrame({
+                    "Feature": predictors,
+                    "Importance": best_rf.feature_importances_
+                    }).sort_values("Importance", ascending=False)
+                st.dataframe(importance.style.bar(subset=["Importance"], color="#FFA07A"), height=300)
+
+                plt.figure(figsize=(20, 10))
+                plot_tree(best_rf, feature_names=predictors, filled=False, node_ids=True, rounded=True, fontsize=8)
+                plt.title("Pruned Decision Tree", fontsize=16, fontweight="bold", pad=20)
+                plt.tight_layout()
+                st.pyplot(plt)
+
 
             
 
