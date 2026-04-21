@@ -1520,7 +1520,7 @@ with tab6:
                     st.session_state.freeze_predictors = None
                     st.rerun()
             #------------------------------OLS LINEAR REGRESSION TRAINING PHASE-----------------------------
-            if (st.session_state.model_frozen is None) and (n < 200):
+            if (st.session_state.model_frozen is None) and (n < 300):
                 st.warning("MODEL ON TRAINING PHASE YET",icon="spinner")
 
                 H= 40    #Test size of 40 samples
