@@ -1911,7 +1911,7 @@ with tab6:
                     c1, c2 = st.columns(2)
                     with c1:
                         st.subheader("📊 Learning Curve Metrics at Key Sample Sizes")
-                        sample_sizes = range(20, 160, 10)
+                        sample_sizes = range(20, 220, 10)
                         results = []
                         for sample in sample_sizes:
                             res = metrics_learning_curve(df_model, sample, predictors)
