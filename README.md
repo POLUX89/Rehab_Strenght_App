@@ -7,7 +7,11 @@ A personal analytics dashboard built with **Streamlit** to track **workouts, sle
 
 ### Home
 ![Home1](assets/home1.png)
+![Home2](assets/home3.png)
 ![Home2](assets/home2.png)
+
+## Workouts 
+![Workouts](assets/workouts_2.png)
 
 ### Recovery
 ![correlation](assets/correlation.png)
@@ -15,6 +19,23 @@ A personal analytics dashboard built with **Streamlit** to track **workouts, sle
 ### Sleep
 ![sleep](assets/sleep.png)
 
+## Time Series Analysis
+![tsa](assets/tsa1.png)
+![tsa](assets/tsa2.png)
+
+## Stats
+![stats](assets/stats1.png)
+![stats](assets/stats2.png)
+![stats](assets/stats3.png)
+
+# Models
+![models](assets/models1.png)
+![models](assets/models2.png)
+![models](assets/models3.png)
+![models](assets/models4.png)
+![models](assets/models5.png)
+![models](assets/models6.png)
+![models](assets/models7.png)
 ---
 ## 🎯 Why this project exists
 
@@ -29,6 +50,7 @@ After experiencing a **Cerebrovascular Accident (CVA)**, I needed a reliable way
 Most fitness apps show numbers without context.  
 This dashboard is designed to show **what the data actually represents, how recent it is, and how confident we should be when interpreting it**.
 
+Moreover, to practice statistical test and machine learning models to perform a diagnostic analysis where the key is why happened.
 ---
 
 ## 🧠 What the dashboard does
@@ -52,11 +74,22 @@ The app integrates **three independent data sources**:
 - Components such as HRV, stress, resting heart rate
 - Transparent visualization of trends and variability
 
-### Stats
+## 🔗 Time Series Analysis 
+- Performa a time series analysis
+- ACF and PACF plots
+- Statistical tests (ADF, KPSS) for stationary
+- An insight based on the tsa to use or not time series models 
+
+### 📉 Stats
 - Location estimate
 - Variability estimate
 - Outliers detection
 - Hypothesis testing
+
+## ⚙️ Models
+- Use ML to interpret and explain what happened with a regression problem (Sleep Score) and a classification problem (Good or Bad sleep)
+- Supervised models for regression and classification
+- Unsupervised models and Dimensionality Reduction for plotting
 
 ---
 
@@ -101,6 +134,7 @@ This is especially important in a **rehabilitation context**, where misinterpret
 - **Streamlit**
 - **Pandas / NumPy**
 - **Matplotlib / Seaborn**
+- **Sklearn**
 
 ---
 
