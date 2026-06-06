@@ -2,6 +2,9 @@
 # Rehab Strength Dashboard (Workouts + Sleep + Recovery)
 # Run: streamlit run app.py
 
+from pyparsing import line
+from sklearn.neighbors import KNeighborsRegressor
+from statsmodels import tsa
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -26,13 +29,12 @@ from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 import shap
-
-
+import time
 
 st.set_page_config(page_title="Rehab Strength APP", layout="wide")
 st.title("🏋️‍♂️ Rehab Strength APP", text_alignment="center")
 st.caption("Workouts (Strong) • Sleep (Sheets) • Recovery (Sigmoid)")
-app_version = "V2.3.3"
+app_version = "V2.3.4"
 st.caption(f"App Version: {app_version} • Updated: {datetime.now():%Y-%m-%d %H:%M}")
 st.markdown("---")
 
@@ -455,7 +457,7 @@ recovery = st.session_state.df_recovery
 # -------------------------
 # Tabs
 # -------------------------
-tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Home", "🏋️ Workouts", "😴 Sleep", "🧠 Recovery", "🔗 Correlations", "📉 Stats", "⚙️ Models"])
+tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Home", "🏋️ Workouts", "😴 Sleep", "🧠 Recovery", "🔗 Time Series Analysis", "📉 Stats", "⚙️ Models"])
 # =========================
 # TAB 0 — HOME
 # =========================
@@ -1027,79 +1029,84 @@ with tab3:
                 st.info("No component columns detected (Stress_prev_day / Overnight HRV / etc.).")
 
 # =========================
-# TAB 4 — CORRELATIONS
+# TAB 4 — Time Series Analysis
 # =========================
 with tab4:
-    st.header("🔗 Correlations (Workout vs Recovery/Sleep)")
+    from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+    from statsmodels.tsa.stattools import adfuller, kpss
+    st.header("🔗 Time Series Analysis")
 
-    if workouts is None or (sleep is None and recovery is None):
-        st.info("Upload workouts + (sleep and/or recovery) to compute correlations.")
-    else:
-        # Workout weekly aggregation (works even if you train 3–4x/week)
-        if "VOLUME" in workouts.columns:
-            tmp = workouts.copy()
-            tmp["Week"] = weekly_bucket(tmp["Date"])
-            wk_total = tmp.groupby("Week", as_index=False).agg(
-                WeeklyVolume=("VOLUME", "sum"),
-                WeeklyRPE=("RPE", "mean") if "RPE" in tmp.columns else ("VOLUME", "size")
-            )
+    tsa_col = ["Date", "Start", "End", "InBed hrs", "Asleep hrs", "Awake", "REM hrs", "Light hrs", "Deep hrs", 
+    "Efficiency", "Fall Asleep", "Score"]
+    tsa_df = recovery[tsa_col].dropna(subset=["Score"]).copy().sort_values(by="Date", ascending=True) if recovery is not None else None
+    time_series_analysis = ""
+    tsa_series = (
+        tsa_df.set_index("Date")["Score"]
+        .asfreq("D")           # insert NaN for missing nights
+        .interpolate("time")   # fill gaps proportionally to time distance
+    )
 
-            st.subheader("📦 Weekly Training Load")
-            st.dataframe(wk_total.sort_values("Week"))
+    with st.expander("📋 Time Series Data", expanded=False):
+        st.write("Length of time series data:", tsa_df.shape[0] if tsa_df is not None else "N/A")
+        st.dataframe(tsa_df.head(10))
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.plot(tsa_df["Date"], tsa_df["Score"], marker="x", markersize=2, color="salmon", linewidth=0.5)
+        ax.set_title("Sleep Score over time", fontsize=14, fontweight="bold", pad=15)
+        ax.set_xlabel("")
+        ax.set_ylabel("Score")
+        ax.tick_params(axis='x', rotation=45, labelsize=6)
+        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=1))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b-%Y'))
+        ax.grid(axis="y", alpha=0.25)
+        ax.set_axisbelow(True)
+        sns.despine(ax=ax)
+        st.pyplot(fig)
 
-            # Recovery weekly aggregation
-            if recovery is not None and "Sigmoid Recovery Score" in recovery.columns:
-                rec = recovery.copy()
-                rec["Week"] = weekly_bucket(rec["Date"])
-                wk_rec = rec.groupby("Week", as_index=False).agg(
-                    WeeklyRecovery=("Sigmoid Recovery Score", "mean"),
-                    WeeklyStressPrev=("Stress_prev_day", "mean") if "Stress_prev_day" in rec.columns else ("Sigmoid Recovery Score", "size")
-                )
+    with st.expander("📊 ACF & PACF of Sleep Score", expanded=True):
+        max_lags = min(100, len(tsa_series) // 2 - 1)
+        LAGS = st.slider("Select number of lags for ACF/PACF", 10, max_lags, min(30, max_lags), 5)
+        fig, ax = plt.subplots(figsize=(10, 4))
+        plot_acf(tsa_series, lags=LAGS, title="ACF of Sleep Score", ax=ax)
+        st.pyplot(fig)
+        fig, ax = plt.subplots(figsize=(10, 4))
+        plot_pacf(tsa_series, lags=LAGS, title="PACF of Sleep Score", ax=ax)
+        st.pyplot(fig)
+    
+    with st.expander("📈 Stationary Tests of Sleep Score", expanded=True):
+        # ADF Test — H₀: series has a unit root (NON-stationary)
+        st.info("ADF Test — H₀: series has a unit root")
+        adf_result = adfuller(tsa_series)
+        st.write(f"ADF statistic: {adf_result[0]:.4f}")
+        st.write(f"ADF p-value:   {adf_result[1]:.4f}")
+        # p < 0.05 → reject H₀ → stationary ✅
+        pvalue_adf = adf_result[1]
+        # KPSS Test — H₀: series IS stationary (OPPOSITE null!)
+        st.info("KPSS Test — H₀: series IS stationary")
+        kpss_result = kpss(tsa_series, regression="ct", nlags="auto")
+        st.write(f"KPSS statistic: {kpss_result[0]:.4f}")
+        st.write(f"KPSS p-value:   {kpss_result[1]:.4f}")
+        # p > 0.05 → fail to reject H₀ → stationary ✅
+        pvalue_kpss = kpss_result[1]
 
-                merged = pd.merge(wk_total, wk_rec, on="Week", how="inner").sort_values("Week")
-                st.subheader("🔗 Weekly Volume vs Weekly Recovery")
-                st.dataframe(merged)
+    
+        if pvalue_adf < 0.05 and pvalue_kpss > 0.05:
+            st.success("Both tests indicate the series is likely stationary.")
+            time_series_analysis = "Stationary"
+        elif pvalue_adf >= 0.05 and pvalue_kpss <= 0.05:
+            st.warning("Both tests indicate the series is likely non-stationary.")
+            time_series_analysis = "Non-Stationary"
+        else:
+            st.info("Tests are inconclusive or conflicting. Consider differencing or further analysis.")
+            time_series_analysis = "Inconclusive"
+        st.write(f"Overall Time Series Analysis: **{time_series_analysis}**")
 
-                if not merged.empty:
-                    corr = merged["WeeklyVolume"].corr(merged["WeeklyRecovery"])
-                    st.write(f"**Correlation (WeeklyVolume vs WeeklyRecovery):** {corr:.2f} (n={len(merged)})")
 
-                    fig, ax = plt.subplots(figsize=(6, 4))
-                    ax.scatter(merged["WeeklyVolume"], merged["WeeklyRecovery"])
-                    ax.set_xlabel("WeeklyVolume (lb·reps)")
-                    ax.set_ylabel("WeeklyRecovery (mean sigmoid)")
-                    ax.set_title("Weekly Volume vs Weekly Recovery")
-                    ax.grid(True, alpha=0.25)
-                    st.pyplot(fig)
-
-                    # Optional: show both over time
-                    st.subheader("📈 Weekly Volume + Recovery (time)")
-                    plot_two_axis(
-                        merged, "Week",
-                        "WeeklyVolume", "WeeklyRecovery",
-                        "Weekly Volume vs Recovery over time",
-                        "WeeklyVolume", "WeeklyRecovery"
-                    )
-
-            # Sleep weekly aggregation
-            sleep_score_col = pick_col(sleep, ["Score", "Sleep Score", "SleepScore", "SCORE", "Score.1", "Score.2"]) if sleep is not None else None
-
-            if sleep is not None and sleep_score_col is not None:
-                sl = sleep.copy()
-                sl["Week"] = weekly_bucket(sl["Date"])
-                wk_sl = sl.groupby("Week", as_index=False).agg(
-                    WeeklySleepScore=(sleep_score_col, "mean"),
-                    WeeklyAsleep=("Asleep hrs", "mean") if "Asleep hrs" in sl.columns else (sleep_score_col, "size"),
-                )
-
-            else:
-                st.info("Workouts file needs a VOLUME column to compute weekly load correlations.")
 # =========================
 # TAB 5 — STATS
 # =========================
 with tab5:
     # Data agg necessary for hypothesis testing
-    recovery["Date"] = pd.to_datetime(recovery["Date"])  # Convert to datetime
+    recovery["Date"] = pd.to_datetime(recovery["Date"], errors="coerce")  # Convert to datetime
     workouts_daily = workouts.groupby("Date", as_index=False).agg({
         "DURATION_MIN": "max",
         "WEIGHT_LBS": "max",
@@ -1484,6 +1491,7 @@ with tab5:
 # =========================
 with tab6:
     st.header("⚙️ Models")
+    st.write(f"Overall Time Series Analysis: **{time_series_analysis}**")
     recovery = st.session_state.df_recovery.copy()
     recovery["Date"] = pd.to_datetime(recovery["Date"], errors="coerce")  # Convert to datetime
     recovery["Sleep_need_hrs"] = recovery["Sleep Need"].apply(string_to_decimal_hours)
@@ -1501,7 +1509,7 @@ with tab6:
             st.error(f"Predictor column '{col}' not found in data.")
             st.stop()
 
-    types = st.selectbox(f"Select algorithm to solve:", options=["Regression", "Categorical", "Unsupervised"], key=f"algorithm_type_solver")
+    types = st.selectbox(f"Select algorithm to solve:", options=["Regression", "Classification", "Unsupervised"], key=f"algorithm_type_solver")
     if types == "Regression":
         models = st.segmented_control(
             "Select Model Type:",
@@ -2297,10 +2305,13 @@ with tab6:
             #train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
             predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration", "Stress_sleep"]
 
+            time_start = time.time()
             ols,ridge, lasso, enet, results, best_linear = fit_reg_linear_models(df_model, train_lin[predictors], train_lin["Score"], test_lin[predictors], test_lin["Score"])
+            time_end = time.time()
             st.header(f"📊 Results Dataframe")
             st.dataframe(results)
             st.badge(f"Best model: {results.iloc[0]['Model']}", color="green", icon="✅")
+            st.info(f"Time taken to fit models: {time_end - time_start:.2f} seconds")
 
             # ----------------------------- BEST MODEL PERFORMANCE -----------------------------
             st.header(f"📊 Performance of Linear Models")
@@ -2455,13 +2466,297 @@ with tab6:
                     shap.plots.waterfall(shap_values[sample_ind], max_display=14, show=False)
                     st.pyplot(fig)
 
+        # ---------------------------------- NON LINEAR MODELS ----------------------------------
+        elif models == "Non Linear Models":
+            def fit_reg_non_linear_models(df, X_train, y_train, X_test, y_test):
+                """ 
+                Fit DT, SVM, KNN with scaling features and select best hyperparameters using GridSearchCV.
+                ------------
+                Parameters:
+                df: pd.DataFrame - Full dataframe 
+                X_train: pd.DataFrame - Training features
+                y_train: pd.Series - Training target
+                X_test: pd.DataFrame - Testing features
+                y_test: pd.Series - Testing target
+                ------------
+                Returns:
+                dict - Dictionary of model name to fitted model and performance metrics
+                """
+                results = []
+                # ------------------DT------------------
+                full_tree = DecisionTreeRegressor()
+                path = full_tree.cost_complexity_pruning_path(X_train, y_train)
+                ccp_alphas = path.ccp_alphas
+                samples_ccp = np.quantile(ccp_alphas, np.linspace(0, 1, 10))
+                pipe_dt = Pipeline([
+                    ("dt", DecisionTreeRegressor(criterion="squared_error"))
+                ])
+                grid_dt = GridSearchCV(pipe_dt, 
+                                       param_grid={
+                                           "dt__max_depth": [3, 5, 7, 9, None],
+                                           "dt__min_samples_split": [2, 5, 10],
+                                           "dt__ccp_alpha": samples_ccp
+                                        },
+                                        cv=5, scoring="neg_mean_squared_error")
+                grid_dt.fit(X_train, y_train)
+                best_dt = grid_dt.best_estimator_
+                y_pred_train_dt = best_dt.predict(X_train)
+                y_pred_test_dt = best_dt.predict(X_test)
 
+                #------------------ KNN ---------------------------
+                pipe_knn = Pipeline([
+                    ("scaler", StandardScaler()),
+                    ("knn", KNeighborsRegressor())
+                ])
+                grid_knn = GridSearchCV(pipe_knn, 
+                                        param_grid={
+                                            "knn__n_neighbors": [1, 3, 5, 7, 10, 15, 20, 30],
+                                            "knn__weights":["uniform", "distance"], 
+                                            "knn__p": [1, 2]},
+                                        cv=5, scoring="neg_mean_squared_error")
+                grid_knn.fit(X_train, y_train)
+                best_knn = grid_knn.best_estimator_
+                y_pred_train_knn = best_knn.predict(X_train)
+                y_pred_test_knn = best_knn  .predict(X_test)
 
+                # ------------------ SVM ---------------------------
+                from sklearn.svm import SVR
+                pipe_svmr = Pipeline([
+                    ("scaler", StandardScaler()),
+                    ("svmr", SVR())
+                ])
+                grid_svmr = GridSearchCV(pipe_svmr, 
+                                        param_grid = [
+                        {   # linear — no gamma, no degree
+                            "svmr__kernel": ["linear"],
+                            "svmr__C":      np.logspace(-3, 3, 30),
+                        },
+                        {   # rbf and sigmoid — gamma applies, degree does not
+                            "svmr__kernel": ["rbf", "sigmoid"],
+                            "svmr__C":      np.logspace(-3, 3, 30),
+                            "svmr__gamma":  ["scale", "auto"],
+                        },
+                        {   # poly — both gamma and degree apply
+                            "svmr__kernel": ["poly"],
+                            "svmr__C":      np.logspace(-3, 3, 10),
+                            "svmr__gamma":  ["scale", "auto"],
+                            "svmr__degree": [2, 3],
+                        },
+                    ], cv=5, scoring="neg_mean_squared_error")
+                grid_svmr.fit(X_train, y_train)
+                best_svmr = grid_svmr.best_estimator_
+                y_pred_train_svmr = best_svmr.predict(X_train)
+                y_pred_test_svmr = best_svmr.predict(X_test)
 
+                # ------------------- Compile results
+                results.append({
+                    "Model": f"Decision Tree (ccp_alpha={grid_dt.best_params_['dt__ccp_alpha']}), max_depth={grid_dt.best_params_['dt__max_depth']}, min_samples_split={grid_dt.best_params_['dt__min_samples_split']}",
+                    "Train R²": r2_score(y_train, y_pred_train_dt),
+                    "Test R²": r2_score(y_test, y_pred_test_dt),
+                    "Train MSE": mean_squared_error(y_train, y_pred_train_dt),
+                    "Test MSE": mean_squared_error(y_test, y_pred_test_dt),
+                    "Train RMSE": np.sqrt(mean_squared_error(y_train, y_pred_train_dt)),
+                    "Test RMSE": np.sqrt(mean_squared_error(y_test, y_pred_test_dt)),
+                    "Train MAE": mean_absolute_error(y_train, y_pred_train_dt),
+                    "Test MAE": mean_absolute_error(y_test, y_pred_test_dt)
+                })
+                results.append({
+                    "Model": f"KNN (n_neighbors={grid_knn.best_params_['knn__n_neighbors']}, weights={grid_knn.best_params_['knn__weights']}, p={grid_knn.best_params_['knn__p']})",
+                    "Train R²": r2_score(y_train, y_pred_train_knn),
+                    "Test R²": r2_score(y_test, y_pred_test_knn),
+                    "Train MSE": mean_squared_error(y_train, y_pred_train_knn),
+                    "Test MSE": mean_squared_error(y_test, y_pred_test_knn),
+                    "Train RMSE": np.sqrt(mean_squared_error(y_train, y_pred_train_knn)),
+                    "Test RMSE": np.sqrt(mean_squared_error(y_test, y_pred_test_knn)),
+                    "Train MAE": mean_absolute_error(y_train, y_pred_train_knn),
+                    "Test MAE": mean_absolute_error(y_test, y_pred_test_knn)
+                })
+                results.append({
+                    "Model": f"SVM Regressor (kernel={grid_svmr.best_params_['svmr__kernel']}",
+                    "Train R²": r2_score(y_train, y_pred_train_svmr),
+                    "Test R²": r2_score(y_test, y_pred_test_svmr),
+                    "Train MSE": mean_squared_error(y_train, y_pred_train_svmr),
+                    "Test MSE": mean_squared_error(y_test, y_pred_test_svmr),
+                    "Train RMSE": np.sqrt(mean_squared_error(y_train, y_pred_train_svmr)),
+                    "Test RMSE": np.sqrt(mean_squared_error(y_test, y_pred_test_svmr)),
+                    "Train MAE": mean_absolute_error(y_train, y_pred_train_svmr),
+                    "Test MAE": mean_absolute_error(y_test, y_pred_test_svmr)
+                })
 
+                model_objects = [best_dt, best_knn, best_svmr]
+                results_df = pd.DataFrame(results).sort_values(by="Test RMSE", ascending=True)
+                best_model_obj = model_objects[results_df.index[0]]
 
+                return best_dt, best_knn, best_svmr, results_df, best_model_obj
+            
+            H= 40    #Test size of 40 samples
+            train_lin = df_model.iloc[:-H].copy()
+            test_lin  = df_model.iloc[-H:].copy()
+            #train_lin, test_lin = train_test_split(df_model, test_size=0.2, shuffle=False, stratify=None)
+            predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration", "Stress_sleep"]
 
+            time_start = time.time()
+            dt, knn, svmr, results, best_model_non_linear = fit_reg_non_linear_models(df_model, train_lin[predictors], train_lin["Score"], test_lin[predictors], test_lin["Score"])
+            time_end = time.time()
+            st.header(f"📊 Results Dataframe")
+            st.dataframe(results)
+            st.badge(f"Best model: {results.iloc[0]['Model']}", color="green", icon="✅")
+            st.badge(f"Best parameters: {best_model_non_linear.get_params()}", icon="✅")
+            st.info(f"Time taken to fit models: {time_end - time_start:.2f} seconds")
 
+            # ----------------------------- BEST MODEL PERFORMANCE -----------------------------
+            st.header(f"📊 Performance of Non-Linear Models")
+            y_pred_train_best_nonlinear = best_model_non_linear.predict(train_lin[predictors])
+            y_pred_test_best_nonlinear = best_model_non_linear.predict(test_lin[predictors])
+            r2_train_nonlinear = r2_score(train_lin["Score"], y_pred_train_best_nonlinear)
+            r2_test_nonlinear = r2_score(test_lin["Score"], y_pred_test_best_nonlinear)
+            rmse_train_nonlinear = np.sqrt(mean_squared_error(train_lin["Score"], y_pred_train_best_nonlinear))
+            rmse_test_nonlinear = np.sqrt(mean_squared_error(test_lin["Score"], y_pred_test_best_nonlinear))
+            mae_train_nonlinear = mean_absolute_error(train_lin["Score"], y_pred_train_best_nonlinear)
+            mae_test_nonlinear = mean_absolute_error(test_lin["Score"], y_pred_test_best_nonlinear)
+            mse_train_nonlinear = rmse_train_nonlinear ** 2
+            mse_test_nonlinear = rmse_test_nonlinear ** 2
+    #----------------------------- PERFORMANCE METRICS -----------------------------
+            with st.expander("📈 Performance Metrics: Train vs Test", expanded=True):
+                st.subheader("📈 Train Set Performance")
+                c1, c2, c3, c4, c5, c6 = st.columns(6)
+                with c1:
+                    st.metric("Train R²", f"{r2_train_nonlinear:.3f}")
+                with c2:
+                    st.metric("Train MSE", f"{mse_train_nonlinear:.3f}")
+                with c3:
+                    st.metric("Train MAE", f"{mae_train_nonlinear:.3f}")
+                with c4:
+                    st.metric("Train RMSE", f"{rmse_train_nonlinear:.3f}")
+                with c5:
+                    st.metric("Train Samples", f"{train_lin.shape[0]}")
+                with c6:
+                    st.metric("Training Start Date", f"{train_lin.Date.min().date()}")
+
+                st.subheader("📉 Test Set Performance")
+                c1, c2, c3, c4, c5, c6 = st.columns(6)
+                with c1:
+                    st.metric("Test R²", f"{r2_test_nonlinear:.3f}", delta=f"{r2_test_nonlinear - r2_train_nonlinear:.3f}", 
+                            delta_color="green" if r2_test_nonlinear > r2_train_nonlinear else "red")
+                with c2:
+                    st.metric("Test MSE", f"{mse_test_nonlinear:.3f}", delta=f"{mse_test_nonlinear - mse_train_nonlinear:.3f}", 
+                                    delta_color="red" if mse_test_nonlinear > mse_train_nonlinear else "green",
+                                    help="Mean Squared Error (MSE): lower values indicate better fit.\
+                                        Penalizes larger errors more heavily.")
+                with c3:
+                    st.metric("Test MAE", f"{mae_test_nonlinear:.3f}", delta=f"{mae_test_nonlinear - mae_train_nonlinear:.3f}", 
+                                    delta_color="red" if mae_test_nonlinear > mae_train_nonlinear else "green",
+                                    help="Mean Absolute Error (MAE): lower values indicate better fit.")
+                with c4:
+                    st.metric("Test RMSE", f"{rmse_test_nonlinear:.3f}", delta=f"{rmse_test_nonlinear - rmse_train_nonlinear:.3f}", 
+                                    delta_color="red" if rmse_test_nonlinear > rmse_train_nonlinear else "green", 
+                                    help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
+                with c5:
+                    st.metric("Test Samples", f"{test_lin.shape[0]}", help="The last 40 samples used for testing.")
+                with c6:
+                    st.metric("Test Start Date", f"{test_lin.Date.min().date()}")
+        
+            # ----------------------------- LEARNING CURVE -----------------------------
+            with st.expander("📈 Learning Curve Analysis for Best Non Linear Model", expanded=True):
+                st.header("📈 Learning Curve for Best Non Linear Model")
+
+                def metrics_lcv_non_linear(df, x_train, x_test, y_train, y_test, model=best_model_non_linear):
+                    """ 
+                    Learning Curve for winner model
+                    ------------
+                    Parameters:
+                    df: pd.DataFrame - Full dataframe
+                    x_train: pd.DataFrame - Training features
+                    x_test: pd.DataFrame - Testing features
+                    y_train: pd.Series - Training target
+                    y_test: pd.Series - Testing target
+                    model: sklearn estimator - Fitted model to evaluate learning curve
+                    ------------
+                    Returns:
+                    None - Displays learning curve plot
+                    """
+                    from sklearn.model_selection import learning_curve
+
+                    train_sizes, train_scores, test_scores = learning_curve(
+                        model,
+                        x_train,
+                        y_train,
+                        cv=5,
+                        scoring="neg_root_mean_squared_error",
+                        train_sizes=np.linspace(0.1, 1.0, 10),
+                        n_jobs=-1
+                    )
+                    train_mse_mean = -train_scores.mean(axis=1)
+                    test_mse_mean  = -test_scores.mean(axis=1)
+                    train_mse_std  = train_scores.std(axis=1)
+                    test_mse_std   = test_scores.std(axis=1)
+                    lc_df = pd.DataFrame({
+                        "Train Size": train_sizes,
+                        "Train Score": train_scores.mean(axis=1),
+                        "Test Score": test_scores.mean(axis=1)
+                    })
+                    lc_df["Gap"] = lc_df["Train Score"] - lc_df["Test Score"]
+
+                    fig, ax = plt.subplots(1, 3, figsize=(14, 4))
+                    last_step = list(model.named_steps.values())[-1]
+                    ax[0].plot(train_sizes, train_mse_mean, label="Train RMSE", color="steelblue")
+                    ax[0].plot(train_sizes, test_mse_mean, label="CV RMSE", color="orange")
+                    ax[0].fill_between(train_sizes, train_mse_mean - train_mse_std, train_mse_mean + train_mse_std, alpha=0.15, color="steelblue")
+                    ax[0].fill_between(train_sizes, test_mse_mean - test_mse_std, test_mse_mean + test_mse_std, alpha=0.15, color="orange")
+                    ax[0].set_title(f"Learning Curve — {last_step.__class__.__name__}", fontweight="bold", fontsize=8, pad=15)
+                    ax[0].set_xlabel("Training Set Size")
+                    ax[0].set_ylabel("RMSE")
+                    sns.despine(ax=ax[0])
+                    ax[0].legend()
+                    ax[0].grid()
+
+                    sns.barplot(x=["Train", "Test"], y=[train_mse_mean.mean(), test_mse_mean.mean()], ax=ax[1], palette=["lightblue", "orange"])
+                    ax[1].set_title(f"Average RMSE at Different Training Sizes", fontweight="bold", fontsize=8, pad=15)
+                    ax[1].set_ylabel("RMSE")
+                    sns.despine(ax=ax[1])
+                    ax[1].grid(axis="y")
+
+                    sns.lineplot(x=lc_df["Train Size"], y=lc_df["Gap"], marker="o", color="coral", label="RMSE gap Train - Test", ax=ax[2])
+                    ax[2].set_title(f"Gap Between Train and Test RMSE ", fontweight="bold", fontsize=8, pad=15)
+                    ax[2].set_xlabel("Training Set Size")
+                    ax[2].set_ylabel(f"RMSE Score Gap (Train - Test)")
+                    ax[2].annotate(
+                        text=f"Min Gap =\n{lc_df['Gap'].min():.4f}",
+                        xy=(lc_df["Train Size"].iloc[lc_df["Gap"].idxmin()], lc_df["Gap"].min()),
+                        xytext=(lc_df["Train Size"].iloc[lc_df["Gap"].idxmin()] + 10, lc_df["Gap"].min() + 0.05),
+                        textcoords="data",
+                        arrowprops= dict(arrowstyle="->", color="black"),
+                        fontsize=6, fontweight="bold"
+                    )
+                    ax[2].set_ylim(lc_df["Gap"].min() - 0.02, lc_df["Gap"].max() + 0.05)
+                    sns.despine(ax=ax[2])
+                    ax[2].legend(loc="upper right")
+
+                    st.pyplot(fig)
+
+                metrics_lcv_non_linear(df_model, train_lin[predictors], test_lin[predictors], train_lin["Score"], test_lin["Score"], model=best_model_non_linear)
+            # --------------------------- EXPLANATORY POWER -----------------------------
+            with st.expander("📊 Explanatory Power of Predictors", expanded=False):
+                st.subheader("📊 Explanatory Power of Predictors")
+                 # Background dataset — small sample is enough for speed
+                X_background = shap.sample(train_lin[predictors], 100)
+
+                explainer_non_linear   = shap.Explainer(best_model_non_linear.predict, X_background)
+                shap_values_non_linear = explainer_non_linear(test_lin[predictors])
+                col1, col2 = st.columns(2)
+                with col1:
+                    # Beeswarm
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    shap.plots.beeswarm(shap_values_non_linear, show=False)
+                    st.pyplot(fig)
+                with col2:
+                    # Waterfall
+                    sample_ind = 0
+                    fig, ax = plt.subplots(figsize=(8, 5))
+                    shap.plots.waterfall(shap_values_non_linear[sample_ind], max_display=14, show=False)
+                    st.pyplot(fig)
+    
+    # ---------------------------------- UNSUPERVISED LEARNING ----------------------------------
     elif types == "Unsupervised":
         from sklearn.decomposition import PCA
         unsupervised_options = ["PCA", "T-SNE", "K-Means", "DBSCAN"]

@@ -1,4 +1,9 @@
 # Changelog
+## [2.3.4] - 
+- Time to compare models
+- Non linear models included fit, lc & performance metrics (DT, KNN, SVR)
+- Time series analysis tab - Stationary and Autocorrelation (ACF, PACF, ADF, KPSS)
+
 ## [2.3.3] -2026/04/26
 - Regression Learned models: OLS, Ridge, Lasso, Enet
 - Learning curve
