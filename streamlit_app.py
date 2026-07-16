@@ -123,29 +123,29 @@ def weekly_bucket(dt_series):
     dt = pd.to_datetime(dt_series, errors="coerce")  # coerce bad strings to NaT
     return dt.dt.to_period("W-MON").dt.start_time
 
-def plot_line(dfx, x, y, title, ylabel, xlabel="Date", marker="o", markersize=4, color=None, 
-              show_grid=True, despine=True, rotate_x=False, date_locator=None, 
+def plot_line(dfx, x, y, title, ylabel, xlabel="Date", marker="o", markersize=4, color=None,
+              show_grid=True, despine=True, rotate_x=False, date_locator=None,
               date_formatter=None, linewidth=1.5):
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(dfx[x], dfx[y], marker=marker, markersize=markersize, color=color, linewidth=linewidth)
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
-    
+
     if show_grid:
         ax.grid(axis="y", alpha=0.25)
         ax.set_axisbelow(True)
-    
+
     if rotate_x:
         ax.tick_params(axis='x', rotation=45)
-    
+
     if date_locator:
         ax.xaxis.set_major_locator(date_locator)
     if date_formatter:
         ax.xaxis.set_major_formatter(date_formatter)
     if despine:
         sns.despine(ax=ax)
-    
+
     st.pyplot(fig)
 
 def plot_two_axis(dfx, x, y1, y2, title, y1_label, y2_label):
@@ -239,7 +239,7 @@ def correlation_insight(df, col1, col2):
         return st.info(f"Moderate negative correlation ({corr_coef:.2f}) between {col1} and {col2}.")
     else:
         return st.warning(f"Weak or no significant correlation ({corr_coef:.2f}) between {col1} and {col2}.")
-    
+
 def fit_distribution(data): #Function to fit distributions and calculate AIC/BIC
     data = np.array(data)
     distribution = {
@@ -263,7 +263,7 @@ def fit_distribution(data): #Function to fit distributions and calculate AIC/BIC
             k = len(params)
             aic = 2*k - 2*ll
             bic = np.log(len(data))*k - 2*ll
-        
+
             results.append({
                 "distribution": name,
                 "params": params,
@@ -339,7 +339,7 @@ def string_to_decimal_hours(time_str):
         return float(minutes) / 60
     else:
         return np.nan
-    
+
 # -------------------------
 # Uploads (hidden after loaded)
 # -------------------------
@@ -476,7 +476,7 @@ with tab0:
     # freshness (days old)
     today = pd.Timestamp.today().normalize()
     def age_days(ts):
-        if ts is None or pd.isna(ts): 
+        if ts is None or pd.isna(ts):
             return None
         return int((today - pd.to_datetime(ts).normalize()).days)
 
@@ -544,7 +544,7 @@ with tab0:
             c1, c2, c3, c4, c5 = st.columns(5)
             c1.metric("Workouts (week)", int(workouts_count) if workouts_count is not None else "—")
             c2.metric("Time exercised (hrs)", f"{total_hours:.1f}" if total_hours is not None else "—",
-                      delta=f"4 Hrs goal", delta_arrow="off", 
+                      delta=f"4 Hrs goal", delta_arrow="off",
                       delta_color="normal" if total_hours is not None and total_hours >=4 else "inverse")
             if last_sigmoid is None or pd.isna(last_sigmoid):
                 c3.metric("Last Recovery", "—", "No data")
@@ -553,10 +553,10 @@ with tab0:
                     "Last Recovery",
                     f"{last_sigmoid:.3f}",
                     recovery_zone(last_sigmoid), delta_arrow="off",
-                    delta_color="normal" if last_sigmoid is not None and last_sigmoid >= 0.7 else ("inverse" if last_sigmoid is not None and last_sigmoid >= 0.55 else "inverse"))            
+                    delta_color="normal" if last_sigmoid is not None and last_sigmoid >= 0.7 else ("inverse" if last_sigmoid is not None and last_sigmoid >= 0.55 else "inverse"))
             c4.metric("Last sleep score %", f"{float(last_sleep_score):.0f}" if last_sleep_score is not None else "—", f"Excellent" if last_sleep_score is not None and last_sleep_score >= 85 else ("Fair" if last_sleep_score is not None and last_sleep_score >= 70 else "Poor"), delta_arrow="off")
             c5.metric("Last HRV (ms)", f"{float(last_hrv):.0f}" if last_hrv is not None and str(last_hrv) != "nan" else "—",
-                      delta="Bad" if last_hrv is not None and last_hrv < 45 else "Good" if last_hrv is not None and last_hrv <= 60 else "Excellent", 
+                      delta="Bad" if last_hrv is not None and last_hrv < 45 else "Good" if last_hrv is not None and last_hrv <= 60 else "Excellent",
                       delta_arrow="off", delta_color="normal" if last_hrv is not None and last_hrv >= 45 else ("inverse" if last_hrv is not None and last_hrv < 60 else "off"))
 
             st.subheader("📈 Recent Trends")
@@ -664,7 +664,7 @@ with tab0:
                 sld1 = st.slider("Select days for moving average", 2, 11, 5, 1, width=250)
                 ax.plot(tmp["Date"], tmp["Sigmoid Recovery Score"], marker="o", markersize=3, color="green")
                 roll_avg_recovery = tmp["Sigmoid Recovery Score"].rolling(window=sld1).mean()
-                ax.plot(tmp["Date"], roll_avg_recovery, color="orange", linestyle="--", 
+                ax.plot(tmp["Date"], roll_avg_recovery, color="orange", linestyle="--",
                         alpha=0.25, label=f"MA {sld1} days {roll_avg_recovery.iloc[-1]:.2f}")
                 ax.axhline(tmp_avg, color="blue", linestyle=":", alpha=0.6, label=f"Avg {tmp_avg:.2f}")
                 ax.set_xlabel("")
@@ -692,7 +692,7 @@ with tab0:
                 sld_sig_nap = st.slider("Select days for moving average", 2, 11, 5, 1, width=250, key="sig_nap_ma_slider")
                 ax.plot(tmp2["Date"], tmp2["Sigmoid with Nap"], marker="o", markersize=3, color="seagreen")
                 roll_avg_recovery_nap = tmp2["Sigmoid with Nap"].rolling(window=sld_sig_nap).mean()
-                ax.plot(tmp2["Date"], roll_avg_recovery_nap, color="orange", linestyle="--", 
+                ax.plot(tmp2["Date"], roll_avg_recovery_nap, color="orange", linestyle="--",
                         alpha=0.25, label=f"MA {sld_sig_nap} days {roll_avg_recovery_nap.iloc[-1]:.2f}")
                 ax.axhline(tmp2_avg, color="blue", linestyle=":", alpha=0.6, label=f"Avg {tmp2_avg:.2f}")
                 ax.set_xlabel("")
@@ -740,7 +740,7 @@ with tab0:
             tmp_avg_sleep = tmp[sleep_score_col].mean()
             ax.axhline(tmp_avg_sleep, color="blue", linestyle=":", alpha=0.6, label=f"Avg {tmp_avg_sleep:.0f}")
             ax.plot(tmp["Date"], tmp[sleep_score_col], marker="o", markersize=3, color="purple")
-            ax.plot(tmp["Date"],roll_avg_sleep, color="orange", linestyle="--", 
+            ax.plot(tmp["Date"],roll_avg_sleep, color="orange", linestyle="--",
                     alpha=0.4, label=f"MA {sld2} days {roll_avg_sleep.iloc[-1]:.0f}")
             ax.set_xlabel("")
             ax.legend(loc="lower left")
@@ -913,8 +913,8 @@ with tab2:
             # Wake Count
             if "Wake Count" in sleep.columns:
                 st.subheader("🌙 Wake Count")
-                plot_line(sleep.dropna(subset=["Wake Count"]), "Date", "Wake Count", 
-                        "Wake Count over time", "Count", 
+                plot_line(sleep.dropna(subset=["Wake Count"]), "Date", "Wake Count",
+                        "Wake Count over time", "Count",
                         marker=None, color="purple", xlabel="",
                         rotate_x=True, date_locator=mdates.MonthLocator(interval=2), linewidth=0.7)
             # Naps
@@ -928,11 +928,11 @@ with tab2:
                     filtered_nap = sleep[(sleep["Date"] >= start_date) & (sleep["Date"] <= recent_date)].copy()
                     df_plot = filtered_nap.dropna(subset=["Asleep_Nap"])
                     roll_avg_nap = df_plot["Asleep_Nap"].rolling(window=7, min_periods=1).mean()
-                    
+
 
                     fig, ax = plt.subplots(figsize=(10, 4))
                     ax.plot(df_plot["Date"], df_plot["Asleep_Nap"], color="teal", linewidth=1.5, label="Nap Asleep")
-                    ax.plot(df_plot["Date"], roll_avg_nap, marker="o", markersize=2, color="salmon", label=f"7-day MA", 
+                    ax.plot(df_plot["Date"], roll_avg_nap, marker="o", markersize=2, color="salmon", label=f"7-day MA",
                             linewidth=1, linestyle="--")
                     ax.set_title("Nap Asleep over time")
                     ax.set_ylabel("Minutes")
@@ -945,7 +945,7 @@ with tab2:
                     sns.despine(ax=ax)
                     st.pyplot(fig)
 
-                    # Monthly total naps 
+                    # Monthly total naps
                 # TBD
 
             else:
@@ -974,13 +974,13 @@ with tab2:
                     sleep_monthly = sleep_filtered.set_index("Date").resample("M")["Asleep_Nap"].sum().reset_index()
                     st.subheader("🗓️ Monthly Nap Asleep Total (min)")
                     plot_line(sleep_monthly.dropna(subset=["Asleep_Nap"]), "Date", "Asleep_Nap",
-                            "Monthly Nap Asleep Total", "Minutes", 
+                            "Monthly Nap Asleep Total", "Minutes",
                             marker="o", color="coral", xlabel="",
                             rotate_x=True, date_locator=mdates.MonthLocator(interval=1), show_grid=True, date_formatter=mdates.DateFormatter('%b-%Y'))
                 else:
                     st.info("Column 'InBed_Nap' not found in sleep data.")
 
- 
+
 # =========================
 # TAB 3 — RECOVERY
 # =========================
@@ -1006,8 +1006,8 @@ with tab3:
                     "Date",
                     "Sigmoid Recovery Score",
                     "Sigmoid Recovery Score over time",
-                    "Score", xlabel="", color="seagreen", rotate_x=True, 
-                    date_locator=mdates.DayLocator(interval=2), 
+                    "Score", xlabel="", color="seagreen", rotate_x=True,
+                    date_locator=mdates.DayLocator(interval=2),
                     date_formatter=mdates.DateFormatter('%b-%d')
                 )
 
@@ -1036,7 +1036,7 @@ with tab4:
     from statsmodels.tsa.stattools import adfuller, kpss
     st.header("🔗 Time Series Analysis")
 
-    tsa_col = ["Date", "Start", "End", "InBed hrs", "Asleep hrs", "Awake", "REM hrs", "Light hrs", "Deep hrs", 
+    tsa_col = ["Date", "Start", "End", "InBed hrs", "Asleep hrs", "Awake", "REM hrs", "Light hrs", "Deep hrs",
     "Efficiency", "Fall Asleep", "Score"]
     tsa_df = recovery[tsa_col].dropna(subset=["Score"]).copy().sort_values(by="Date", ascending=True) if recovery is not None else None
     time_series_analysis = ""
@@ -1071,7 +1071,7 @@ with tab4:
         fig, ax = plt.subplots(figsize=(10, 4))
         plot_pacf(tsa_series, lags=LAGS, title="PACF of Sleep Score", ax=ax)
         st.pyplot(fig)
-    
+
     with st.expander("📈 Stationary Tests of Sleep Score", expanded=True):
         # ADF Test — H₀: series has a unit root (NON-stationary)
         st.info("ADF Test — H₀: series has a unit root")
@@ -1088,7 +1088,7 @@ with tab4:
         # p > 0.05 → fail to reject H₀ → stationary ✅
         pvalue_kpss = kpss_result[1]
 
-    
+
         if pvalue_adf < 0.05 and pvalue_kpss > 0.05:
             st.success("Both tests indicate the series is likely stationary.")
             time_series_analysis = "Stationary"
@@ -1120,7 +1120,7 @@ with tab5:
     #-----------------------------
     st.header("📉 Stats")
     st.subheader("📊 Recovery on Exercise vs Non-Exercise Days")
-    allowed = sorted(["InBed hrs", "Asleep hrs", "Wake Count", "REM hrs", "Light hrs", "Deep hrs", "Fall Asleep", 
+    allowed = sorted(["InBed hrs", "Asleep hrs", "Wake Count", "REM hrs", "Light hrs", "Deep hrs", "Fall Asleep",
             "Overnight HRV", "Stress", "RHR", "Score"])
     check_metric = st.selectbox("Select metric to analyze:", allowed, index=allowed.index("Score"))
     picked_col = recovery[check_metric] if recovery is not None and check_metric in recovery.columns else None
@@ -1128,7 +1128,7 @@ with tab5:
     median_val = picked_col.median()
     std_val = picked_col.std()
     trim_mean_val = stats.trim_mean(picked_col.dropna(), 0.1) if picked_col is not None else None
-    n = picked_col.dropna().shape[0] 
+    n = picked_col.dropna().shape[0]
     trim_mean = stats.trim_mean(picked_col.dropna(), 0.1) if picked_col is not None else None
     cv = std_val / mean_val if mean_val not in (0, None) and not pd.isna(mean_val) else np.nan
     col_pvalue, col_inter = normality_test(picked_col) if picked_col is not None else (None, None)
@@ -1145,10 +1145,10 @@ with tab5:
             chart_type="line")
         c3.metric("Std Dev", f"{std_val:.2f}" if std_val is not None else "—")
         c4.metric("Trimmed Mean (10%)", f"{trim_mean:.2f}" if trim_mean is not None else "—")
-        c5.metric("Sample (n)", "Sufficient" if n >= 30 else "Insufficient", 
+        c5.metric("Sample (n)", "Sufficient" if n >= 30 else "Insufficient",
                   delta=n, delta_color="normal" if n >= 30 else "inverse",
                   help="n >=30 is considered sufficient for Central Limit Theorem.", delta_arrow="off")
-        c6.metric("Coef of Var (CV)", "Good" if cv is not None and cv < 0.1 else "Acceptable" if cv is not None and cv < 0.2 else "High", 
+        c6.metric("Coef of Var (CV)", "Good" if cv is not None and cv < 0.1 else "Acceptable" if cv is not None and cv < 0.2 else "High",
                   delta=f"{round(cv*100, 2)} %",delta_color="normal" if cv is not None and cv < 0.1 else "orange" if cv is not None and cv < 0.2 else "inverse" if cv is not None else None,
                   help="CV <10% is considered good stability; 10-20% acceptable; >20% high variability.")
         c7.metric("Skewness", f"{picked_col.skew():.2f}" if picked_col is not None else "—", help="Skewness indicates asymmetry. >0 means right-skewed, <0 means left-skewed.")
@@ -1161,7 +1161,7 @@ with tab5:
         c1, c2 = st.columns(2)
         with c1:
             if picked_col is not None and not picked_col.dropna().empty:
-                complementary = st.segmented_control("Complementary CDF ?:", [True, False], key="cdf_type_control", default=True, 
+                complementary = st.segmented_control("Complementary CDF ?:", [True, False], key="cdf_type_control", default=True,
                                                      help="If True then complementary CDF (1 - CDF) is shown.")
                 perc_90 = picked_col.quantile(0.9)
                 perc_75 = picked_col.quantile(0.75)
@@ -1169,7 +1169,7 @@ with tab5:
                 cecdf_50 = compute_ecdf(picked_col.dropna(), median_val, complementary=complementary)
                 cecdf_75 = compute_ecdf(picked_col.dropna(), perc_75, complementary=complementary)
                 cecdf_90 = compute_ecdf(picked_col.dropna(), perc_90, complementary=complementary)
-                sns.ecdfplot(data=recovery, x=check_metric, label=f"Empirical CDF {check_metric}", 
+                sns.ecdfplot(data=recovery, x=check_metric, label=f"Empirical CDF {check_metric}",
                             color="green", complementary=complementary, ax=ax)
                 plt.axvline(mean_val, color="blue", linestyle="--", label=f"Mean: {mean_val:.2f}", linewidth=0.5)
                 plt.axvline(median_val, color="lightseagreen", linestyle=":", label=f"50th Percentile: {median_val:.2f}", linewidth=1)
@@ -1190,7 +1190,7 @@ with tab5:
         with c2:
             st.subheader(f"📈 Percentile Insights {check_metric}")
             st.write("Typical value (median)", round(median_val,2))
-            st.write("Uncommon value (75th ):", round(perc_75,2))   
+            st.write("Uncommon value (75th ):", round(perc_75,2))
             st.write("Rare high value (90th):", round(perc_90,2))
             st.subheader(f"📊 Probability Insights {check_metric}")
             if complementary:
@@ -1202,12 +1202,12 @@ with tab5:
                 st.write("The probability of getting any value up to common performance is:", round(cecdf_75*100, 2), " %")
                 st.write("The probability of getting any value up to atypical performance is:", round(cecdf_90*100, 2), " %")
             st.info("Note: Even though the ECDF provides empirical probabilities based on historical data, " \
-            "it does not guarantee future outcomes. Use this information as a guide rather than a definitive prediction.", 
+            "it does not guarantee future outcomes. Use this information as a guide rather than a definitive prediction.",
             icon="ℹ️")
     #------------------------------------- NORMALITY TEST & VISUALS ----------------------------------------
     with st.expander("🔍 Normality Test for Recovery", expanded=False):
         st.subheader("🔍 Normality Test for Recovery")
-        
+
         # Interpretation
         if col_pvalue is not None and col_pvalue > 0.05:
             st.success(f"Shapiro Wilk Test: {check_metric} appears to be normally distributed (p={col_pvalue:.3f}). You can use parametric tests.")
@@ -1260,7 +1260,7 @@ with tab5:
             ax.tick_params(axis='x', rotation=45)
             st.pyplot(fig)
         else:
-            date_plot = st.slider("Select number of days to show for time series plot", 30, 365, 180, 1, key="time_series_days_slider", 
+            date_plot = st.slider("Select number of days to show for time series plot", 30, 365, 180, 1, key="time_series_days_slider",
                 width=250)
             date_filter = recovery["Date"].max() - pd.Timedelta(days=date_plot)
             fig, ax = plt.subplots(figsize=(10, 3))
@@ -1282,7 +1282,7 @@ with tab5:
         outliers_iqr = outlier_dectection_iqr(picked_col) if picked_col is not None else pd.Series(dtype=float)
         outliers_z = outlier_detection_zscore_modified(picked_col, threshold=3)
 
-        if len(outliers_iqr) == 0 and len(outliers_z) == 0: 
+        if len(outliers_iqr) == 0 and len(outliers_z) == 0:
             st.success(f"No outliers detected in {check_metric} using IQR method and Modified Z-Score method.", icon="✅")
         else:
             st.info(f"Detected {len(outliers_iqr)} outlier(s) in {check_metric} using IQR method.",
@@ -1291,13 +1291,13 @@ with tab5:
             st.info(f"Detected {len(outliers_z)} outlier(s) in {check_metric} using Modified Z-Score method.",
                     icon="🚨")
             st.dataframe(outliers_z.to_frame(name=f"{check_metric} Value"))
-    
+
     #------------------------------------- HYPOTHESIS TESTING ----------------------------------------
     with st.expander("🛠️ Tests with rest days and exercise days", expanded=False):
         st.subheader("🛠️ Statistical Tests")
         if col_pvalue > 0.05:
             group1 = recovery_exercise_done[check_metric].dropna()
-            group2 = recovery_exercise_notdone[check_metric].dropna() 
+            group2 = recovery_exercise_notdone[check_metric].dropna()
             st.write("Since the data appears to be normally distributed, you can use parametric tests such as t-tests or ANOVA for further analysis.")
             options = ["One-sample t-test", "Independent t-test"]
             choice = st.segmented_control(
@@ -1430,7 +1430,7 @@ with tab5:
                                 if p_value_val < 0.05:
                                     st.success("Reject the null hypothesis at α=0.05 level.")
                                 else:
-                                    st.info("Fail to reject the null hypothesis at α=0.05 level.")   
+                                    st.info("Fail to reject the null hypothesis at α=0.05 level.")
                             with c2:
                                 fig, ax = plt.subplots(figsize=(7,5))
                                 sns.scatterplot(x=x, y=y, ax=ax, alpha=0.7)
@@ -1439,7 +1439,7 @@ with tab5:
                                 ax.set_xlabel(check_metric)
                                 ax.set_ylabel(col2)
                                 sns.despine(ax=ax)
-                                st.pyplot(fig)            
+                                st.pyplot(fig)
 
             elif choice == "Mann-Whitney U test":
                 group1 = recovery_exercise_done[check_metric].dropna()
@@ -1496,7 +1496,7 @@ with tab6:
     recovery = st.session_state.df_recovery.copy()
     recovery["Date"] = pd.to_datetime(recovery["Date"], errors="coerce")  # Convert to datetime
     recovery["Sleep_need_hrs"] = recovery["Sleep Need"].apply(string_to_decimal_hours)
-    recovery["Efficiency"] = recovery["Efficiency"].str.replace('%', '').astype(float) 
+    recovery["Efficiency"] = recovery["Efficiency"].str.replace('%', '').astype(float)
     recovery["Sleep_hr_surplus"] =  recovery["Asleep hrs"] - recovery["Sleep_need_hrs"]
 
     predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus", "Respiration", "Stress_sleep"]
@@ -1544,13 +1544,13 @@ with tab6:
                 X_test = sm.add_constant(test_lin[predictors])
                 y_test = test_lin["Score"]
                 y_pred_linear = model_linear.predict(X_test)
-                r2_train_linear = model_linear.rsquared                
+                r2_train_linear = model_linear.rsquared
                 r2_test_linear = r2_score(y_test, y_pred_linear)
                 mse_train_linear = mean_squared_error(y, model_linear.fittedvalues)
                 mse_test_linear = mean_squared_error(y_test, y_pred_linear)
                 mae_train_linear = mean_absolute_error(y, model_linear.fittedvalues)
                 mae_test_linear = mean_absolute_error(y_test, y_pred_linear)
-                rmse_train_linear = np.sqrt(mse_train_linear)                
+                rmse_train_linear = np.sqrt(mse_train_linear)
                 rmse_test_linear = np.sqrt(mse_test_linear)
                 # --------------------------MODEL DIAGNOSIS--------------------------
                 with st.expander("🔎 Model Diagnosis", expanded=False):
@@ -1601,7 +1601,7 @@ with tab6:
                             leverage = influence.hat_matrix_diag
                             threshold_leverage = 2 * (X.shape[1] + 1) / X.shape[0]
                             high_leverage_points = np.where(leverage > threshold_leverage)[0]
-                                
+
                             st.write(f"\nHigh leverage points (leverage > {threshold_leverage:.4f}): {high_leverage_points}")
                             st.subheader("📏 Influential Observations (Cook's Distance)")
                             influence = model_linear.get_influence()
@@ -1692,7 +1692,7 @@ with tab6:
                             st.warning(f"Removed {len(influential)} influential points from the model.", icon="⚠️")
                             st.subheader("📏 Leverage")
                             threshold_leverage = 2 * (X.shape[1] + 1) / X.shape[0]
-                            high_leverage_points = np.where(leverage > threshold_leverage)[0]   
+                            high_leverage_points = np.where(leverage > threshold_leverage)[0]
                             st.write(f"\nHigh leverage points (leverage > {threshold_leverage:.4f}): {high_leverage_points}")
 
                             st.subheader("📏 Influential Observations (Cook's Distance)")
@@ -1731,28 +1731,28 @@ with tab6:
                     st.subheader("📉 Test Set Performance")
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
                     with c1:
-                        st.metric("Test R²", f"{r2_test_linear:.3f}", delta=f"{r2_test_linear - r2_train_linear:.3f}", 
+                        st.metric("Test R²", f"{r2_test_linear:.3f}", delta=f"{r2_test_linear - r2_train_linear:.3f}",
                                 delta_color="green" if r2_test_linear > r2_train_linear else "red")
                     with c2:
-                        st.metric("MSE", f"{mse_test_linear:.3f}", delta=f"{mse_test_linear - mse_train_linear:.3f}", 
+                        st.metric("MSE", f"{mse_test_linear:.3f}", delta=f"{mse_test_linear - mse_train_linear:.3f}",
                                 delta_color="red" if mse_test_linear > mse_train_linear else "green",
                                 help="Mean Squared Error (MSE): lower values indicate better fit.\
                                     Penalizes larger errors more heavily.")
                     with c3:
-                        st.metric("MAE", f"{mae_test_linear:.3f}", delta=f"{mae_test_linear - mae_train_linear:.3f}", 
+                        st.metric("MAE", f"{mae_test_linear:.3f}", delta=f"{mae_test_linear - mae_train_linear:.3f}",
                                 delta_color="red" if mae_test_linear > mae_train_linear else "green",
                                 help="Mean Absolute Error (MAE): lower values indicate better fit.")
                     with c4:
-                        st.metric("RMSE", f"{rmse_test_linear:.3f}", delta=f"{rmse_test_linear - rmse_train_linear:.3f}", 
-                                delta_color="red" if rmse_test_linear > rmse_train_linear else "green", 
+                        st.metric("RMSE", f"{rmse_test_linear:.3f}", delta=f"{rmse_test_linear - rmse_train_linear:.3f}",
+                                delta_color="red" if rmse_test_linear > rmse_train_linear else "green",
                                 help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
                     with c5:
                         st.metric("Samples", f"{test_lin.shape[0]}", help="The last 40 samples used for testing.")
                     with c6:
                         st.metric("Test Start Date", f"{test_lin.Date.min().date()}")
-            
+
                 #--------------------------------------OLS INSIGHTS---------------------------------
-                predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus_centered", "Sleep_hr_surplus_squared", 
+                predictors = ["REM hrs", "Stress_prev_day", "Deep hrs", "Wake Count", "Sleep_hr_surplus_centered", "Sleep_hr_surplus_squared",
                             "Respiration", "Stress_sleep"]
                 train_lin_pol = df_model.iloc[:-H].copy()
                 test_lin_pol  = df_model.iloc[-H:].copy()
@@ -1771,13 +1771,13 @@ with tab6:
                 X_test_pol = sm.add_constant(test_lin_pol[predictors])
                 y_test_pol = test_lin_pol["Score"]
                 y_pred_linear_pol = model_linear_pol.predict(X_test_pol)
-                r2_train_linear_pol = model_linear_pol.rsquared                
+                r2_train_linear_pol = model_linear_pol.rsquared
                 r2_test_linear_pol = r2_score(y_test_pol, y_pred_linear_pol)
                 mse_train_linear_pol = mean_squared_error(y_pol, model_linear_pol.fittedvalues)
                 mse_test_linear_pol = mean_squared_error(y_test_pol, y_pred_linear_pol)
                 mae_train_linear_pol = mean_absolute_error(y_pol, model_linear_pol.fittedvalues)
                 mae_test_linear_pol = mean_absolute_error(y_test_pol, y_pred_linear_pol)
-                rmse_train_linear_pol = np.sqrt(mse_train_linear_pol)                
+                rmse_train_linear_pol = np.sqrt(mse_train_linear_pol)
                 rmse_test_linear_pol = np.sqrt(mse_test_linear_pol)
 
                 # Add polynomial columns to full df_model using train mean (no leakage)
@@ -1844,7 +1844,7 @@ with tab6:
                         st.markdown(f"**Out-of-sample Test R² (trained on train set):** {r2_test_linear_pol:.3f}")
 
                         fig, ax = plt.subplots(figsize=(10,5))
-                        sns.scatterplot(data=filtered_test, x="Score", y="Predicted_Score_Linear_Test_Data_Pol", ax=ax, color="purple", alpha=0.7, 
+                        sns.scatterplot(data=filtered_test, x="Score", y="Predicted_Score_Linear_Test_Data_Pol", ax=ax, color="purple", alpha=0.7,
                                         hue="Quality", palette="viridis", legend="full")
                         sns.lineplot(data=filtered_test, x="Score", y="Score", ax=ax, color="red", linestyle="--", label="Ideal Fit")
                         ax.axvline(x=80, color="grey", linestyle=":", label="Good Quality Threshold")
@@ -1892,20 +1892,20 @@ with tab6:
                     st.subheader("📉 Test Set Performance")
                     c1, c2, c3, c4, c5, c6 = st.columns(6)
                     with c1:
-                        st.metric("Test R²", f"{r2_test_linear_pol:.3f}", delta=f"{r2_test_linear_pol - r2_train_linear_pol:.3f}", 
+                        st.metric("Test R²", f"{r2_test_linear_pol:.3f}", delta=f"{r2_test_linear_pol - r2_train_linear_pol:.3f}",
                                 delta_color="green" if r2_test_linear_pol > r2_train_linear_pol else "red")
                     with c2:
-                        st.metric("Test MSE", f"{mse_test_linear_pol:.3f}", delta=f"{mse_test_linear_pol - mse_train_linear_pol:.3f}", 
+                        st.metric("Test MSE", f"{mse_test_linear_pol:.3f}", delta=f"{mse_test_linear_pol - mse_train_linear_pol:.3f}",
                                 delta_color="red" if mse_test_linear_pol > mse_train_linear_pol else "green",
                                 help="Mean Squared Error (MSE): lower values indicate better fit.\
                                     Penalizes larger errors more heavily.")
                     with c3:
-                        st.metric("Test MAE", f"{mae_test_linear_pol:.3f}", delta=f"{mae_test_linear_pol - mae_train_linear_pol:.3f}", 
+                        st.metric("Test MAE", f"{mae_test_linear_pol:.3f}", delta=f"{mae_test_linear_pol - mae_train_linear_pol:.3f}",
                                 delta_color="red" if mae_test_linear_pol > mae_train_linear_pol else "green",
                                 help="Mean Absolute Error (MAE): lower values indicate better fit.")
                     with c4:
-                        st.metric("Test RMSE", f"{rmse_test_linear_pol:.3f}", delta=f"{rmse_test_linear_pol - rmse_train_linear_pol:.3f}", 
-                                delta_color="red" if rmse_test_linear_pol > rmse_train_linear_pol else "green", 
+                        st.metric("Test RMSE", f"{rmse_test_linear_pol:.3f}", delta=f"{rmse_test_linear_pol - rmse_train_linear_pol:.3f}",
+                                delta_color="red" if rmse_test_linear_pol > rmse_train_linear_pol else "green",
                                 help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
                     with c5:
                         st.metric("Test Samples", f"{test_lin_pol.shape[0]}", help="The last 40 samples used for testing.")
@@ -1930,10 +1930,10 @@ with tab6:
                                 results.append(res)
 
                         if results:
-                            df_all_metrics = pd.DataFrame(results).set_index("Model_samples")                            
+                            df_all_metrics = pd.DataFrame(results).set_index("Model_samples")
                             st.dataframe(df_all_metrics)
                         else:
-                            st.warning("Not enough data to compute learning curve metrics.") 
+                            st.warning("Not enough data to compute learning curve metrics.")
                         learning_curve_df = pd.DataFrame(results)
 
                         st.subheader("🪜🧱 Plateaut Detection")
@@ -1950,12 +1950,12 @@ with tab6:
                         samples = st.checkbox("Show all values for learning curve (not forecast or extrapolated) ?:", value=True, key="learning_curve_future_values_checkbox")
                         fig, ax = plt.subplots(figsize=(10,5))
                         if samples:
-                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Train {metric}",  label=f"Train {metric}", ax=ax, color="lightblue", linestyle=":", linewidth=1, marker="o", markersize=4)                        
+                            sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Train {metric}",  label=f"Train {metric}", ax=ax, color="lightblue", linestyle=":", linewidth=1, marker="o", markersize=4)
                             sns.lineplot(data=learning_curve_df, x=learning_curve_df.index, y=f"Test {metric}",  label=f"Test {metric}", ax=ax, color="orange", linewidth=1, marker="x", markersize=4)
                             ax.axvspan(xmin=40, xmax=n, color="lightgrey", alpha=0.2, label="Current Region")
                         else:
                             filtered_lc = learning_curve_df.loc[learning_curve_df.index <= n]
-                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Train {metric}", label=f"Train {metric}", ax=ax, color="lightblue", linestyle=":", linewidth=1, marker="o", markersize=2)                
+                            sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Train {metric}", label=f"Train {metric}", ax=ax, color="lightblue", linestyle=":", linewidth=1, marker="o", markersize=2)
                             sns.lineplot(data=filtered_lc, x=filtered_lc.index, y=f"Test {metric}", label=f"Test {metric}", ax=ax, color="orange", linewidth=1, marker="x")
 
                         ax.axvline(x=n, color="white", linestyle="--", label="Current Sample Size")
@@ -2084,7 +2084,7 @@ with tab6:
                             st.success(f"Residuals appear to be normally distributed (p={pvalue_resid_both:.3f}).")
                         else:
                             st.info(f"Residuals do not appear to be normally distributed (p={pvalue_resid_both:.3f}).")
-                            
+
                         c1, c2 = st.columns(2)
                         with c1:
                             fig, ax = plt.subplots(figsize=(10,5))
@@ -2119,7 +2119,7 @@ with tab6:
                             ax.tick_params(axis='x', rotation=45)
                             sns.despine(ax=ax)
                             st.pyplot(fig)
-                    
+
             # ------------------------------FROZEN MODEL DEPLOYMENT PHASE-----------------------------
             elif (st.session_state.model_frozen is None) and (n >= 300):
                 st.success("MODEL READY FOR DEPLOYMENT (FREEZING NOW)", icon="✅")
@@ -2299,7 +2299,7 @@ with tab6:
                 best_model_obj = model_objects[results_df.index[0]]
 
                 return best_ols, best_ridge, best_lasso, best_enet, results_df, best_model_obj
-            
+
             H= 40    #Test size of 40 samples
             train_lin = df_model.iloc[:-H].copy()
             test_lin  = df_model.iloc[-H:].copy()
@@ -2347,20 +2347,20 @@ with tab6:
                 st.subheader("📉 Test Set Performance")
                 c1, c2, c3, c4, c5, c6 = st.columns(6)
                 with c1:
-                    st.metric("Test R²", f"{r2_test_linear_pol:.3f}", delta=f"{r2_test_linear_pol - r2_train_linear_pol:.3f}", 
+                    st.metric("Test R²", f"{r2_test_linear_pol:.3f}", delta=f"{r2_test_linear_pol - r2_train_linear_pol:.3f}",
                             delta_color="green" if r2_test_linear_pol > r2_train_linear_pol else "red")
                 with c2:
-                    st.metric("Test MSE", f"{mse_test_linear_pol:.3f}", delta=f"{mse_test_linear_pol - mse_train_linear_pol:.3f}", 
+                    st.metric("Test MSE", f"{mse_test_linear_pol:.3f}", delta=f"{mse_test_linear_pol - mse_train_linear_pol:.3f}",
                                     delta_color="red" if mse_test_linear_pol > mse_train_linear_pol else "green",
                                     help="Mean Squared Error (MSE): lower values indicate better fit.\
                                         Penalizes larger errors more heavily.")
                 with c3:
-                    st.metric("Test MAE", f"{mae_test_linear_pol:.3f}", delta=f"{mae_test_linear_pol - mae_train_linear_pol:.3f}", 
+                    st.metric("Test MAE", f"{mae_test_linear_pol:.3f}", delta=f"{mae_test_linear_pol - mae_train_linear_pol:.3f}",
                                     delta_color="red" if mae_test_linear_pol > mae_train_linear_pol else "green",
                                     help="Mean Absolute Error (MAE): lower values indicate better fit.")
                 with c4:
-                    st.metric("Test RMSE", f"{rmse_test_linear_pol:.3f}", delta=f"{rmse_test_linear_pol - rmse_train_linear_pol:.3f}", 
-                                    delta_color="red" if rmse_test_linear_pol > rmse_train_linear_pol else "green", 
+                    st.metric("Test RMSE", f"{rmse_test_linear_pol:.3f}", delta=f"{rmse_test_linear_pol - rmse_train_linear_pol:.3f}",
+                                    delta_color="red" if rmse_test_linear_pol > rmse_train_linear_pol else "green",
                                     help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
                 with c5:
                     st.metric("Test Samples", f"{test_lin.shape[0]}", help="The last 40 samples used for testing.")
@@ -2371,7 +2371,7 @@ with tab6:
                 st.header("📈 Learning Curve for Best Linear Model")
 
                 def metrics_lcv(df, x_train, x_test, y_train, y_test, model=best_linear):
-                    """ 
+                    """
                     Learning Curve for winner model
                     ------------
                     Parameters:
@@ -2489,7 +2489,7 @@ with tab6:
                 pipe_dt = Pipeline([
                     ("dt", DecisionTreeRegressor(criterion="squared_error"))
                 ])
-                grid_dt = GridSearchCV(pipe_dt, 
+                grid_dt = GridSearchCV(pipe_dt,
                                        param_grid={
                                            "dt__max_depth": [3, 5, 7, 9, None],
                                            "dt__min_samples_split": [2, 5, 10],
@@ -2506,10 +2506,10 @@ with tab6:
                     ("scaler", StandardScaler()),
                     ("knn", KNeighborsRegressor())
                 ])
-                grid_knn = GridSearchCV(pipe_knn, 
+                grid_knn = GridSearchCV(pipe_knn,
                                         param_grid={
                                             "knn__n_neighbors": [1, 3, 5, 7, 10, 15, 20, 30],
-                                            "knn__weights":["uniform", "distance"], 
+                                            "knn__weights":["uniform", "distance"],
                                             "knn__p": [1, 2]},
                                         cv=5, scoring="neg_mean_squared_error")
                 grid_knn.fit(X_train, y_train)
@@ -2523,7 +2523,7 @@ with tab6:
                     ("scaler", StandardScaler()),
                     ("svmr", SVR())
                 ])
-                grid_svmr = GridSearchCV(pipe_svmr, 
+                grid_svmr = GridSearchCV(pipe_svmr,
                                         param_grid = [
                         {   # linear — no gamma, no degree
                             "svmr__kernel": ["linear"],
@@ -2586,7 +2586,7 @@ with tab6:
                 best_model_obj = model_objects[results_df.index[0]]
 
                 return best_dt, best_knn, best_svmr, results_df, best_model_obj
-            
+
             H= 40    #Test size of 40 samples
             train_lin = df_model.iloc[:-H].copy()
             test_lin  = df_model.iloc[-H:].copy()
@@ -2634,32 +2634,32 @@ with tab6:
                 st.subheader("📉 Test Set Performance")
                 c1, c2, c3, c4, c5, c6 = st.columns(6)
                 with c1:
-                    st.metric("Test R²", f"{r2_test_nonlinear:.3f}", delta=f"{r2_test_nonlinear - r2_train_nonlinear:.3f}", 
+                    st.metric("Test R²", f"{r2_test_nonlinear:.3f}", delta=f"{r2_test_nonlinear - r2_train_nonlinear:.3f}",
                             delta_color="green" if r2_test_nonlinear > r2_train_nonlinear else "red")
                 with c2:
-                    st.metric("Test MSE", f"{mse_test_nonlinear:.3f}", delta=f"{mse_test_nonlinear - mse_train_nonlinear:.3f}", 
+                    st.metric("Test MSE", f"{mse_test_nonlinear:.3f}", delta=f"{mse_test_nonlinear - mse_train_nonlinear:.3f}",
                                     delta_color="red" if mse_test_nonlinear > mse_train_nonlinear else "green",
                                     help="Mean Squared Error (MSE): lower values indicate better fit.\
                                         Penalizes larger errors more heavily.")
                 with c3:
-                    st.metric("Test MAE", f"{mae_test_nonlinear:.3f}", delta=f"{mae_test_nonlinear - mae_train_nonlinear:.3f}", 
+                    st.metric("Test MAE", f"{mae_test_nonlinear:.3f}", delta=f"{mae_test_nonlinear - mae_train_nonlinear:.3f}",
                                     delta_color="red" if mae_test_nonlinear > mae_train_nonlinear else "green",
                                     help="Mean Absolute Error (MAE): lower values indicate better fit.")
                 with c4:
-                    st.metric("Test RMSE", f"{rmse_test_nonlinear:.3f}", delta=f"{rmse_test_nonlinear - rmse_train_nonlinear:.3f}", 
-                                    delta_color="red" if rmse_test_nonlinear > rmse_train_nonlinear else "green", 
+                    st.metric("Test RMSE", f"{rmse_test_nonlinear:.3f}", delta=f"{rmse_test_nonlinear - rmse_train_nonlinear:.3f}",
+                                    delta_color="red" if rmse_test_nonlinear > rmse_train_nonlinear else "green",
                                     help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
                 with c5:
                     st.metric("Test Samples", f"{test_lin.shape[0]}", help="The last 40 samples used for testing.")
                 with c6:
                     st.metric("Test Start Date", f"{test_lin.Date.min().date()}")
-        
+
             # ----------------------------- LEARNING CURVE -----------------------------
             with st.expander("📈 Learning Curve Analysis for Best Non Linear Model", expanded=True):
                 st.header("📈 Learning Curve for Best Non Linear Model")
 
                 def metrics_lcv_non_linear(df, x_train, x_test, y_train, y_test, model=best_model_non_linear):
-                    """ 
+                    """
                     Learning Curve for winner model
                     ------------
                     Parameters:
@@ -2775,12 +2775,12 @@ with tab6:
                 pipe_rf = Pipeline([
                     ("rf", RandomForestRegressor(criterion="squared_error", n_jobs=4))
                 ])
-                grid_rf = GridSearchCV(pipe_rf, 
+                grid_rf = GridSearchCV(pipe_rf,
                                        param_grid=
-                                       {"rf__n_estimators": [100, 200, 300], 
+                                       {"rf__n_estimators": [100, 200, 300],
                                         "rf__max_depth": [None, 10, 20, 30],
                                         "rf__min_samples_leaf": [2, 5, 10],
-                                        "rf__max_features": ["sqrt", "log2", 0.33, 0.5]}, 
+                                        "rf__max_features": ["sqrt", "log2", 0.33, 0.5]},
                                         cv=5, scoring="neg_mean_squared_error")
                 grid_rf.fit(X_train, y_train)
                 best_rf = grid_rf.best_estimator_
@@ -2802,7 +2802,7 @@ with tab6:
                         "ada__estimator":                  [SVR()],
                         "ada__estimator__C":               [0.1, 1.0, 10.0],#SVR Hyperparameter
                         "ada__estimator__kernel":          ["rbf", "linear"], #SVR Hyperparameter
-                        "ada__n_estimators":               [100, 200], #Adaboost 
+                        "ada__n_estimators":               [100, 200], #Adaboost
                         "ada__learning_rate":              [0.01, 0.1],#Adaboost
                     },
                 ]
@@ -2829,7 +2829,7 @@ with tab6:
                     ("scaler", StandardScaler()),
                     ("gb", GradientBoostingRegressor(loss="squared_error"))
                 ])
-                grid_gb = GridSearchCV(pipe_gb, 
+                grid_gb = GridSearchCV(pipe_gb,
                                         param_grid={
                                             "gb__learning_rate": np.logspace(-3, 0, 10),
                                             "gb__n_estimators": [100, 200, 300],
@@ -2885,7 +2885,7 @@ with tab6:
                 best_model_obj = model_objects[results_df.index[0]]
 
                 return best_rf, best_ada, best_gb, results_df, best_model_obj
-            
+
             H= 40    #Test size of 40 samples
             train_lin = df_model.iloc[:-H].copy()
             test_lin  = df_model.iloc[-H:].copy()
@@ -2934,20 +2934,20 @@ with tab6:
                 st.subheader("📉 Test Set Performance")
                 c1, c2, c3, c4, c5, c6 = st.columns(6)
                 with c1:
-                    st.metric("Test R²", f"{r2_test_ensemble:.3f}", delta=f"{r2_test_ensemble - r2_train_ensemble:.3f}", 
+                    st.metric("Test R²", f"{r2_test_ensemble:.3f}", delta=f"{r2_test_ensemble - r2_train_ensemble:.3f}",
                             delta_color="green" if r2_test_ensemble > r2_train_ensemble else "red")
                 with c2:
-                    st.metric("Test MSE", f"{mse_test_ensemble:.3f}", delta=f"{mse_test_ensemble - mse_train_ensemble:.3f}", 
+                    st.metric("Test MSE", f"{mse_test_ensemble:.3f}", delta=f"{mse_test_ensemble - mse_train_ensemble:.3f}",
                                     delta_color="red" if mse_test_ensemble > mse_train_ensemble else "green",
                                     help="Mean Squared Error (MSE): lower values indicate better fit.\
                                         Penalizes larger errors more heavily.")
                 with c3:
-                    st.metric("Test MAE", f"{mae_test_ensemble:.3f}", delta=f"{mae_test_ensemble - mae_train_ensemble:.3f}", 
+                    st.metric("Test MAE", f"{mae_test_ensemble:.3f}", delta=f"{mae_test_ensemble - mae_train_ensemble:.3f}",
                                     delta_color="red" if mae_test_ensemble > mae_train_ensemble else "green",
                                     help="Mean Absolute Error (MAE): lower values indicate better fit.")
                 with c4:
-                    st.metric("Test RMSE", f"{rmse_test_ensemble:.3f}", delta=f"{rmse_test_ensemble - rmse_train_ensemble:.3f}", 
-                                    delta_color="red" if rmse_test_ensemble > rmse_train_ensemble else "green", 
+                    st.metric("Test RMSE", f"{rmse_test_ensemble:.3f}", delta=f"{rmse_test_ensemble - rmse_train_ensemble:.3f}",
+                                    delta_color="red" if rmse_test_ensemble > rmse_train_ensemble else "green",
                                     help="Root Mean Squared Error (RMSE): lower values indicate better fit, in original units.")
                 with c5:
                     st.metric("Test Samples", f"{test_lin.shape[0]}", help="The last 40 samples used for testing.")
@@ -2959,7 +2959,7 @@ with tab6:
                 st.header("📈 Learning Curve for Best Ensemble Model")
 
                 def metrics_lcv_ensemble(df, x_train, x_test, y_train, y_test, model=best_model_ensemble):
-                    """ 
+                    """
                     Learning Curve for winner model
                     ------------
                     Parameters:
@@ -3091,7 +3091,7 @@ with tab6:
             bars = plt.gca().patches
             values = results_df["Explained Variance (%)"].values
             for bar, value in zip(bars, values):
-                ax[1].text(bar.get_x() + bar.get_width() / 2, bar.get_height(), 
+                ax[1].text(bar.get_x() + bar.get_width() / 2, bar.get_height(),
                         f"{value:.2f}%", ha="center", va="bottom", fontsize=8, fontweight="bold")
             ax[1].set_title("Explained Variance by Number of PCA Components", fontsize=10, fontweight="bold", pad=15)
             ax[1].set_xlabel("Number of Components")
@@ -3106,7 +3106,7 @@ with tab6:
             ax[0].set_title("PCA Loadings — each cell shows feature contribution to each PC",
                     fontweight="bold", fontsize=10, pad=15)
             plt.tight_layout()
-            st.pyplot(fig) 
+            st.pyplot(fig)
         elif unsupervised_choice == "T-SNE":
             st.header("📊 T-Distributed Stochastic Neighbor Embedding (T-SNE)")
             from sklearn.manifold import TSNE
@@ -3210,7 +3210,7 @@ with tab6:
             ax.set_title("T-SNE: 2D Visualization of Sleep Data")
             sns.despine(ax=ax)
             st.pyplot(fig)
-                   
+
 st.caption(
     "Tip: If you only train 3–4 days/week, use weekly aggregation (Volume / mean Recovery / mean Sleep) "
     "to avoid the mismatch between daily sleep and training frequency."

@@ -1,1 +1,91 @@
+# ---------------------------------------------------------------------------
+# Secrets & credentials — NUNCA quitar estas reglas
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+credentials/
+*.pem
+*.key
+*-service-account*.json
+service_account*.json
+client_secret*.json
+gcp-*.json
+token.json
+
+# ---------------------------------------------------------------------------
+# Datos personales de salud — el código se publica, los datos no
+# ---------------------------------------------------------------------------
+data/raw/*
+data/processed/*
+data/external/*
+!data/**/.gitkeep
+!data/**/README.md
+*.csv
+*.xlsx
+*.xls
+*.pdf
+!tests/fixtures/*.csv
+
+# Notebooks exploratorios: los outputs contienen datos personales
+notebooks/*.ipynb
+
+# ---------------------------------------------------------------------------
+# Modelos entrenados (se regeneran; pesan y pueden filtrar datos)
+# ---------------------------------------------------------------------------
+models/*
+!models/.gitkeep
+!models/README.md
+*.pkl
+*.joblib
+*.h5
+*.onnx
+
+# ---------------------------------------------------------------------------
+# Figuras generadas en runtime (assets/ sí se versiona: son las del README)
+# ---------------------------------------------------------------------------
+reports/figures/*
+!reports/figures/.gitkeep
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Entornos virtuales
+.venv/
+.venv-*/
+venv/
+env/
+ENV/
+
+# Testing y tipos
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------------
+# Editores y SO
+# ---------------------------------------------------------------------------
 .DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*~

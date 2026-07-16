@@ -1,4 +1,41 @@
 # Changelog
+
+## [2.4.0] - 2026/07/16
+
+Reestructuración del repositorio. La app no cambió de comportamiento.
+
+### Added
+- Pipeline de ingesta publicado como paquete en `src/rehab_strength/`:
+  `ingest.sleep` (Google Sheets + Garmin), `ingest.strong` (export de Strong) y
+  `ingest.run_all`. Antes vivía fuera del repo con rutas absolutas.
+- `config.py`: todas las rutas se resuelven relativas a la raíz del repo y se
+  pueden sobrescribir por variables de entorno.
+- `gsheets.py`: las credenciales de Google se resuelven en runtime desde el
+  entorno o desde los secrets de Streamlit, nunca desde un archivo del repo.
+- Carpetas `data/{raw,processed,external}/`, `models/` y `reports/figures/`, cada
+  una con su README y todas ignoradas por git.
+- Suite de tests (34 casos) sobre parseo de duraciones, scoring de siestas y
+  limpieza de workouts.
+- CI en GitHub Actions: lint, tests y escaneo de secretos con `gitleaks` sobre
+  todo el historial.
+- `pre-commit` con `detect-secrets`, `detect-private-key`, `nbstripout` y `ruff`.
+- `Makefile`, `pyproject.toml`, `LICENSE` y plantillas `.env.example` y
+  `.streamlit/secrets.toml.example`.
+
+### Changed
+- `beta.py` renombrado a `streamlit_app.py` (historial preservado con `git mv`).
+- `.gitignore` ampliado para bloquear credenciales, datos de salud, modelos y
+  notebooks con outputs.
+- README: arquitectura, instalación y una sección de privacidad que refleja que
+  ahora se publica el código de ingesta pero nunca los datos.
+
+### Fixed
+- **Un peso mal capturado borraba el entrenamiento completo.** En la limpieza de
+  workouts, `DATE` es el índice y todos los sets de una sesión comparten
+  timestamp, así que `drop(index=...)` eliminaba todas las filas de esa fecha en
+  vez del set con peso > 900 lbs. Ahora se filtra con una máscara booleana. El
+  bug era latente: no hay pesos > 900 lbs en los datos actuales.
+
 ## [2.3.4] - 2026/06/07
 - Time to compare models
 - Non linear models included fit, lc & performance metrics (DT, KNN, SVR)
@@ -93,4 +130,3 @@ Models Tab
 
 ## [1.0.0]
 - Initial app creatioN
-

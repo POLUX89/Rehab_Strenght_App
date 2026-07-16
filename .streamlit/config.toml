@@ -1,0 +1,10 @@
+[theme]
+base = "dark"
+primaryColor = "#4f8bf9"
+
+[server]
+# Los exports de Strong pueden ser grandes.
+maxUploadSize = 50
+
+[browser]
+gatherUsageStats = false

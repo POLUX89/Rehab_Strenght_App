@@ -1,0 +1,36 @@
+# Instalar una vez:  pip install pre-commit && pre-commit install
+# Corre en cada commit y bloquea secretos, archivos gigantes y notebooks con outputs.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+      - id: detect-private-key
+        # La plantilla lleva un placeholder entre las cabeceras BEGIN/END, sin
+        # material criptográfico. El hook sigue activo en el resto del repo.
+        exclude: ^\.streamlit/secrets\.toml\.example$
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-toml
+      - id: check-yaml
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.5
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  # Los outputs de los notebooks contienen datos de salud personales.
+  - repo: https://github.com/kynan/nbstripout
+    rev: 0.8.1
+    hooks:
+      - id: nbstripout
