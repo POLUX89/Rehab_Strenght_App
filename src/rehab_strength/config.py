@@ -12,6 +12,16 @@ from pathlib import Path
 # src/rehab_strength/config.py -> raíz del repo
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    # dotenv solo viene con el extra [ingest]. Sin él las variables de entorno
+    # del shell siguen funcionando; solo no se lee el archivo .env.
+    pass
+else:
+    # override=False: lo que ya esté exportado en el shell gana sobre el .env.
+    load_dotenv(PROJECT_ROOT / ".env", override=False)
+
 
 def _dir_from_env(var: str, default: Path) -> Path:
     return Path(os.getenv(var, default)).expanduser().resolve()

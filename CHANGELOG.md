@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4.2] - 2026/07/16
+
+### Fixed
+- `make ingest` fallaba con "No hay credenciales de Google" aunque existiera un
+  `.env`: el README mandaba crearlo pero nada lo leía. `config.py` ahora carga
+  `.env` con python-dotenv. Las variables ya exportadas en el shell siguen
+  teniendo prioridad sobre el archivo.
+
 ## [2.4.1] - 2026/07/16
 
 ### Fixed
