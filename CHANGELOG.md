@@ -25,6 +25,9 @@ Non Linear y Bagging & Boosting aún son stubs).
 - Python fijado a **3.13**: `requires-python = ">=3.13,<3.14"`, ruff
   `target-version = "py313"` y `.python-version`. Paridad con Streamlit Community
   Cloud (tope 3.13) y cierra la puerta a que un resolver elija 3.14.
+- CI (`ci.yml`) sigue el `.python-version` (3.13) vía `python-version-file` en vez
+  de un `3.12` hardcodeado, que rompía `pip install -e .` contra el nuevo
+  `requires-python`. Una sola fuente de verdad, sin desincronización futura.
 - `models/__init__.py` enruta el tipo "Classification" a la nueva sub-rama.
 
 

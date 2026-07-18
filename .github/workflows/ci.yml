@@ -13,7 +13,9 @@ jobs:
 
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          # Fuente única de verdad: sigue el pin del repo (3.13), paridad con
+          # Streamlit Cloud. Evita que el CI se desincronice de requires-python.
+          python-version-file: ".python-version"
           cache: pip
 
       - name: Instalar dependencias
