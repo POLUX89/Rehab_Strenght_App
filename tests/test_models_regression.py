@@ -1,9 +1,9 @@
-"""Tests del sub-tab Regression de Models (app/tabs/models/regression/).
+"""Tests del sub-paquete Regression de Models (app/tabs/models/regression/).
 
-La garantía fuerte de esta extracción es la comparación AST (993 llamadas
-idénticas al original), hecha fuera de pytest. Aquí: firma y que el despacho por
-segmented_control carga sin entrenar (models=None -> ninguna rama). La cobertura
-de cada rama llegará al subdividir en ols/linear/nonlinear/ensemble.
+La garantía fuerte de la subdivisión es la comparación AST (todas las llamadas
+del original preservadas, solo se añaden las 4 delegaciones), hecha fuera de
+pytest. Aquí: firmas y que el despachador enruta cada opción del segmented_control
+a su sub-rama.
 """
 
 import inspect
@@ -18,6 +18,7 @@ import pandas as pd
 import pytest
 
 import app.tabs.models.regression as regression
+from app.tabs.models.regression import ensemble, linear, nonlinear, ols
 
 PREDICTORS = [
     "REM hrs",
@@ -42,13 +43,40 @@ def df_model():
     return pd.DataFrame(data)
 
 
-def test_render_signature():
-    assert list(inspect.signature(regression.render).parameters) == ["df_model", "predictors"]
+def test_all_renders_share_signature():
+    for mod in (regression, ols, linear, nonlinear, ensemble):
+        assert list(inspect.signature(mod.render).parameters) == ["df_model", "predictors"]
 
 
-def test_render_no_model_selected_does_not_train(monkeypatch, df_model):
+@pytest.mark.parametrize(
+    ("choice", "target"),
+    [
+        ("OLS diagnosis", "ols"),
+        ("Other Linear Models", "linear"),
+        ("Non Linear Models", "nonlinear"),
+        ("Bagging & Boosting Models", "ensemble"),
+    ],
+)
+def test_dispatch_routes_to_correct_branch(monkeypatch, df_model, choice, target):
     m = MagicMock()
-    m.segmented_control.return_value = None  # ninguna rama seleccionada
+    m.segmented_control.return_value = choice
     monkeypatch.setattr(regression, "st", m)
-    regression.render(df_model, PREDICTORS)  # no debe lanzar
-    m.segmented_control.assert_called_once()
+    called = []
+    for name, mod in [
+        ("ols", ols),
+        ("linear", linear),
+        ("nonlinear", nonlinear),
+        ("ensemble", ensemble),
+    ]:
+        monkeypatch.setattr(mod, "render", lambda df, p, _n=name: called.append(_n))
+    regression.render(df_model, PREDICTORS)
+    assert called == [target]  # solo la rama elegida se ejecuta
+
+
+def test_dispatch_none_runs_nothing(monkeypatch, df_model):
+    m = MagicMock()
+    m.segmented_control.return_value = None
+    monkeypatch.setattr(regression, "st", m)
+    for mod in (ols, linear, nonlinear, ensemble):
+        monkeypatch.setattr(mod, "render", lambda df, p: pytest.fail("no debería entrenar"))
+    regression.render(df_model, PREDICTORS)  # ninguna rama
