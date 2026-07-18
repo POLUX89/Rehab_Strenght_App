@@ -17,6 +17,16 @@ LOG="$HOME/Library/Logs/rehab_strength_pipeline.log"
 mkdir -p "$(dirname "$LOG")"
 echo "---- $(date) ---- ingesta automática (wake)" >>"$LOG"
 
+# Buzón sincronizado (iCloud) donde el móvil deposita los raw (export de Strong,
+# xlsx de Garmin). El repo vive FUERA de iCloud; aquí traemos los archivos nuevos
+# a data/raw antes de ingerir. Overridable con REHAB_INBOX en el entorno.
+INBOX="${REHAB_INBOX:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/rehab-inbox}"
+if [ -d "$INBOX" ]; then
+  find "$INBOX" -maxdepth 1 -type f \( -name '*.csv' -o -name '*.xlsx' \) \
+    -exec cp {} data/raw/ \; 2>/dev/null
+  echo "📥 buzón -> data/raw ($INBOX)" >>"$LOG"
+fi
+
 # Notificación nativa de macOS, sin depender de ninguna app externa.
 # La primera vez macOS puede pedir permiso para notificaciones del intérprete.
 notify() {
