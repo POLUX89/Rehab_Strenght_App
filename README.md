@@ -15,40 +15,7 @@ A personal analytics dashboard built with **Streamlit** to track **workouts, sle
 https://github.com/user-attachments/assets/7041db62-8f85-4449-a515-f1960cbdb90b
 
 ---
-## 📸 Dashboard Preview
 
-### Home
-![Home1](assets/home1.png)
-![Home2](assets/home3.png)
-![Home2](assets/home2.png)
-
-## Workouts
-![Workouts](assets/workouts_2.png)
-
-### Recovery
-![correlation](assets/correlation.png)
-
-### Sleep
-![sleep](assets/sleep.png)
-
-## Time Series Analysis
-![tsa](assets/tsa1.png)
-![tsa](assets/tsa2.png)
-
-## Stats
-![stats](assets/stats1.png)
-![stats](assets/stats2.png)
-![stats](assets/stats3.png)
-
-# Models
-![models](assets/models1.png)
-![models](assets/models2.png)
-![models](assets/models3.png)
-![models](assets/models4.png)
-![models](assets/models5.png)
-![models](assets/models6.png)
-![models](assets/models7.png)
----
 ## 🎯 Why this project exists
 
 This app was created out of a **real personal need**.
@@ -102,6 +69,45 @@ The app integrates **three independent data sources**:
 - Use ML to interpret and explain what happened with a regression problem (Sleep Score) and a classification problem (Good or Bad sleep)
 - Supervised models for regression and classification
 - Unsupervised models and Dimensionality Reduction for plotting
+
+---
+
+## 📸 Dashboard Preview
+
+### Home
+![Home](assets/home1.png)
+![Home](assets/home3.png)
+![Home](assets/home2.png)
+
+### Workouts
+![Workouts](assets/workouts_2.png)
+
+### Recovery
+![Recovery](assets/correlation.png)
+
+### Sleep
+![Sleep](assets/sleep.png)
+
+### Time Series Analysis
+![Time Series Analysis](assets/tsa1.png)
+![Time Series Analysis](assets/tsa2.png)
+
+### Stats
+![Stats](assets/stats1.png)
+![Stats](assets/stats2.png)
+![Stats](assets/stats3.png)
+
+### Models
+![Models](assets/models1.png)
+![Models](assets/models2.png)
+![Models](assets/models3.png)
+![Models](assets/models4.png)
+![Models](assets/models5.png)
+![Models](assets/models6.png)
+![Models](assets/models7.png)
+
+### Classification
+![Classification](assets/classification.png)
 
 ---
 
