@@ -53,7 +53,18 @@ RECOVERY_COMPONENTS = [
 # Parsers
 # ---------------------------------------------------------------------------
 def parse_sleep_duration(value) -> float:
-    """Convierte '10h:30m', 'HH:MM:SS', '45m', '2h' a minutos totales."""
+    """Parse a sleep-duration string into total minutes.
+
+    Handles the ``"10h:30m"``, ``"HH:MM:SS"``, ``"MM:SS"``, ``"45m"`` and
+    ``"2h"`` forms.
+
+    Args:
+        value: Duration value; may be a string or missing.
+
+    Returns:
+        The duration in minutes as a float, or ``np.nan`` if the value is
+        missing or empty.
+    """
     if pd.isna(value):
         return np.nan
     s = str(value).strip()
@@ -90,7 +101,16 @@ def parse_sleep_duration(value) -> float:
 # Scoring de naps
 # ---------------------------------------------------------------------------
 def classify_nap(time_decimal: float) -> float:
-    """Puntúa una siesta por su hora de inicio."""
+    """Score a nap by its start time of day.
+
+    Rewards early-afternoon naps and penalizes very early or late ones.
+
+    Args:
+        time_decimal: Nap start time as decimal hours (e.g. 14.5 for 14:30).
+
+    Returns:
+        A score in ``[-0.5, 0.5]``, or ``0`` when the time is missing or zero.
+    """
     if pd.isna(time_decimal) or time_decimal == 0:
         return 0
     if time_decimal < 10:
@@ -103,7 +123,18 @@ def classify_nap(time_decimal: float) -> float:
 
 
 def nap_duration(duration: float) -> float:
-    """Puntúa una siesta por su duración en minutos."""
+    """Score a nap by its length in minutes.
+
+    Favors short restorative naps (up to ~30 min) and penalizes lengths
+    associated with sleep inertia.
+
+    Args:
+        duration: Nap duration in minutes.
+
+    Returns:
+        A score in ``[-0.4, 0.5]``, or ``0`` when the duration is missing,
+        zero, or under 10 minutes.
+    """
     if pd.isna(duration) or duration == 0:
         return 0
     if duration < 10:
@@ -120,13 +151,20 @@ def nap_duration(duration: float) -> float:
 
 
 def nap_status(nap_time_score, nap_duration_score):
-    """Etiqueta el efecto neto de la siesta.
+    """Label the net effect of a nap from its time and duration scores.
 
-    No Nap  ambos scores en cero
-    Boost   claramente beneficiosa
-    Good    positiva moderada
-    Neutral efecto pequeño o poco claro
-    Disrupt probablemente daña el sueño nocturno o causa inercia
+    Categories by combined score: ``No Nap`` (both scores zero), ``Boost``
+    (clearly beneficial), ``Good`` (moderately positive), ``Neutral`` (small
+    or unclear effect), ``Disrupt`` (likely harms night sleep or causes
+    inertia).
+
+    Args:
+        nap_time_score: Score from :func:`classify_nap`.
+        nap_duration_score: Score from :func:`nap_duration`.
+
+    Returns:
+        A NumPy array of label strings (one per row), aligned with the input
+        series.
     """
     total = nap_time_score + nap_duration_score
     conditions = [
@@ -144,7 +182,18 @@ def nap_status(nap_time_score, nap_duration_score):
 # Extracción
 # ---------------------------------------------------------------------------
 def fetch_sleep_from_sheets() -> pd.DataFrame:
-    """Descubre las hojas 'Health Metrics_v*' en Drive y apila su pestaña Sleep."""
+    """Discover the ``Health Metrics_v*`` sheets in Drive and stack their Sleep tab.
+
+    Lists matching spreadsheets, reads each one's ``Sleep`` tab, concatenates
+    the rows, and orders them so that on duplicate dates the highest sheet
+    version wins.
+
+    Returns:
+        The combined sleep DataFrame across all matching sheets.
+
+    Raises:
+        RuntimeError: If no matching sheets are found or none could be read.
+    """
     # Import diferido: las funciones de transformación de este módulo deben poder
     # usarse y testearse sin las dependencias de Google ni credenciales.
     from ..gsheets import get_services
@@ -208,7 +257,19 @@ def fetch_sleep_from_sheets() -> pd.DataFrame:
 # Transformación
 # ---------------------------------------------------------------------------
 def clean_sleep(raw: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Separa sueño principal de siestas y normaliza duraciones."""
+    """Split main sleep from naps and normalize durations.
+
+    Parses dates, drops unused columns, converts duration columns to minutes
+    (then main-sleep stages to hours), and separates the ``Main`` rows from
+    nap rows, deduplicating each by date.
+
+    Args:
+        raw: Raw stacked sleep DataFrame from :func:`fetch_sleep_from_sheets`.
+
+    Returns:
+        A ``(main, naps)`` tuple of DataFrames: nightly main sleep and
+        per-day naps.
+    """
     df = raw.copy()
     df["Date"] = pd.to_datetime(df["Date"], format="%m/%d/%Y")
     df = df.drop(columns=DROP_COLUMNS, errors="ignore")
@@ -241,6 +302,17 @@ def clean_sleep(raw: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def load_hrv(path: Path = HRV_XLSX) -> pd.DataFrame:
+    """Load the HRV Excel export and normalize its columns.
+
+    Strips the ``ms`` suffix from HRV columns, coerces them to numeric, and
+    parses the date column.
+
+    Args:
+        path: Path to the HRV ``.xlsx`` file. Defaults to ``HRV_XLSX``.
+
+    Returns:
+        The cleaned HRV DataFrame.
+    """
     hrv = pd.read_excel(path)
     for col in ["Overnight HRV", "7d Avg"]:
         hrv[col] = hrv[col].astype(str).str.replace("ms", "", regex=False).str.strip()
@@ -250,6 +322,18 @@ def load_hrv(path: Path = HRV_XLSX) -> pd.DataFrame:
 
 
 def load_garmin_sleep(path: Path = GARMIN_SLEEP_XLSX) -> pd.DataFrame:
+    """Load the Garmin sleep Excel export and normalize its date column.
+
+    Renames the leading column to ``Date``, drops duplicate dates, parses the
+    date, and sorts most-recent first.
+
+    Args:
+        path: Path to the Garmin sleep ``.xlsx`` file. Defaults to
+            ``GARMIN_SLEEP_XLSX``.
+
+    Returns:
+        The cleaned Garmin sleep DataFrame.
+    """
     garmin = pd.read_excel(path)
     garmin = garmin.rename(columns={"Sleep Score 4 Weeks": "Date"})
     garmin = garmin.drop_duplicates(subset=["Date"])
@@ -258,7 +342,20 @@ def load_garmin_sleep(path: Path = GARMIN_SLEEP_XLSX) -> pd.DataFrame:
 
 
 def build_recovery(merged: pd.DataFrame, garmin: pd.DataFrame) -> pd.DataFrame:
-    """Calcula el Sigmoid Recovery Score y el ajuste por siesta."""
+    """Compute the Sigmoid Recovery Score and its nap adjustment.
+
+    Merges Garmin data, z-scores the recovery components (inverting resting
+    heart rate and previous-day stress so higher is worse), averages them
+    into a raw score, and maps it through a sigmoid. Then derives nap timing
+    and duration scores and a nap-adjusted score.
+
+    Args:
+        merged: Sleep DataFrame already joined with HRV.
+        garmin: Cleaned Garmin sleep DataFrame from :func:`load_garmin_sleep`.
+
+    Returns:
+        The recovery DataFrame with score, nap and delta columns added.
+    """
     health = pd.merge(merged, garmin, how="left", on="Date")
     health = health.sort_values("Date", ascending=True)
 
@@ -301,6 +398,20 @@ def build_recovery(merged: pd.DataFrame, garmin: pd.DataFrame) -> pd.DataFrame:
 def run(
     sleep_output: Path = CLEAN_SLEEP_CSV, recovery_output: Path = CLEAN_RECOVERY_CSV
 ) -> tuple[Path, Path]:
+    """Run the sleep ingestion step end to end and write the CSV outputs.
+
+    Fetches and cleans sleep, joins naps and HRV, builds the recovery
+    dataset, and writes the clean sleep and recovery CSVs.
+
+    Args:
+        sleep_output: Destination path for the clean sleep CSV. Defaults to
+            ``CLEAN_SLEEP_CSV``.
+        recovery_output: Destination path for the clean recovery CSV.
+            Defaults to ``CLEAN_RECOVERY_CSV``.
+
+    Returns:
+        A ``(sleep_output, recovery_output)`` tuple of the written paths.
+    """
     ensure_dirs()
 
     main, naps = clean_sleep(fetch_sleep_from_sheets())

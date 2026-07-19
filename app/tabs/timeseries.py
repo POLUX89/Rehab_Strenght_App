@@ -16,6 +16,16 @@ from statsmodels.tsa.stattools import adfuller, kpss
 
 
 def render(recovery):
+    """Render the Time Series Analysis tab (ADF/KPSS, ACF/PACF).
+
+    Args:
+        recovery: Recovery DataFrame.
+
+    Returns:
+        The overall stationarity verdict — ``"Stationary"``,
+        ``"Non-Stationary"`` or ``"Inconclusive"`` — which the Models tab
+        reuses.
+    """
     st.header("🔗 Time Series Analysis")
 
     tsa_col = [

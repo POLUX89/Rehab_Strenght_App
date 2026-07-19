@@ -14,6 +14,14 @@ from sklearn.preprocessing import StandardScaler
 
 
 def render(df_model):
+    """Render the Unsupervised sub-tab (PCA, T-SNE, K-Means, DBSCAN).
+
+    Args:
+        df_model: Model-ready DataFrame of predictors and target.
+
+    Returns:
+        None.
+    """
     from sklearn.decomposition import PCA
 
     unsupervised_options = ["PCA", "T-SNE", "K-Means", "DBSCAN"]

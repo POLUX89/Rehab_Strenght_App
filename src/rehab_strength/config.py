@@ -24,6 +24,15 @@ else:
 
 
 def _dir_from_env(var: str, default: Path) -> Path:
+    """Resolve a directory path from an environment variable.
+
+    Args:
+        var: Environment variable name to read.
+        default: Path used when the variable is unset.
+
+    Returns:
+        The resolved absolute path, with ``~`` expanded.
+    """
     return Path(os.getenv(var, default)).expanduser().resolve()
 
 
@@ -57,6 +66,10 @@ HEALTH_METRICS_PREFIX = os.getenv("REHAB_HEALTH_METRICS_PREFIX", "Health Metrics
 
 
 def ensure_dirs() -> None:
-    """Crea las carpetas de salida si no existen."""
+    """Create the pipeline's output directories if they do not exist.
+
+    Creates the raw, processed, external, models and figures directories
+    (parents included), doing nothing for those already present.
+    """
     for d in (RAW_DIR, PROCESSED_DIR, EXTERNAL_DIR, MODELS_DIR, FIGURES_DIR):
         d.mkdir(parents=True, exist_ok=True)

@@ -21,19 +21,33 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 
 def render(df_model, predictors):
+    """Render the Other Linear Models sub-branch.
+
+    Trains OLS, Ridge, Lasso and ElasticNet (with polynomial features and
+    scaling), compares them, and shows metrics and a learning curve for the
+    winner.
+
+    Args:
+        df_model: Model-ready DataFrame of predictors and target.
+        predictors: Predictor column names.
+
+    Returns:
+        None.
+    """
+
     @st.cache_data(show_spinner="Fitting linear models... (runs once per dataset)")
     def fit_reg_linear_models(X_train, y_train, X_test, y_test):
-        """
-        Fit OLS, Ridge, Lasso, and ElasticNet regression models with polynomial features and scaling.
-        ------------
-        Parameters:
-        X_train: pd.DataFrame - Training features
-        y_train: pd.Series - Training target
-        X_test: pd.DataFrame - Testing features
-        y_test: pd.Series - Testing target
-        ------------
+        """Fit OLS, Ridge, Lasso and ElasticNet with polynomial features and scaling.
+
+        Args:
+            X_train: Training features.
+            y_train: Training target.
+            X_test: Test features.
+            y_test: Test target.
+
         Returns:
-        dict - Dictionary of model name to fitted model and performance metrics
+            A dict mapping each model name to its fitted model and
+            performance metrics.
         """
         results = []
         # ------------------OLS with Polynomial Features------------------
@@ -269,19 +283,19 @@ def render(df_model, predictors):
         st.header("📈 Learning Curve for Best Linear Model")
 
         def metrics_lcv(df, x_train, x_test, y_train, y_test, model=best_linear):
-            """
-            Learning Curve for winner model
-            ------------
-            Parameters:
-            df: pd.DataFrame - Full dataframe
-            x_train: pd.DataFrame - Training features
-            x_test: pd.DataFrame - Testing features
-            y_train: pd.Series - Training target
-            y_test: pd.Series - Testing target
-            models: sklearn estimator - Fitted model to evaluate learning curve
-            ------------
+            """Plot the learning curve for the winning linear model.
+
+            Args:
+                df: Full DataFrame.
+                x_train: Training features.
+                x_test: Test features.
+                y_train: Training target.
+                y_test: Test target.
+                model: Fitted estimator to evaluate. Defaults to the best
+                    linear model.
+
             Returns:
-            None - Displays learning curve plot
+                None. Displays the learning-curve plot.
             """
             from sklearn.base import clone
 

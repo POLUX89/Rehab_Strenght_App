@@ -17,6 +17,20 @@ from app.helpers.transforms import pick_col, recovery_zone, safe_minimal_last, w
 
 
 def render(workouts, sleep, recovery):
+    """Render the Weekly Snapshot home tab.
+
+    Shows data-freshness checks and this week's workout, sleep and recovery
+    highlights.
+
+    Args:
+        workouts: Workouts DataFrame.
+        sleep: Sleep DataFrame, or None.
+        recovery: Recovery DataFrame, or None.
+
+    Returns:
+        The ``sleep`` DataFrame (a sorted copy), which the caller reassigns to
+        keep that ordering in the global variable.
+    """
     st.header("🏠 Weekly Snapshot")
     start_wk, end_wk = week_bounds()
     st.caption(f"Week: {start_wk.date()} → {end_wk.date()}")
@@ -33,6 +47,14 @@ def render(workouts, sleep, recovery):
     today = pd.Timestamp.today().normalize()
 
     def age_days(ts):
+        """Return how many days old a timestamp is relative to today.
+
+        Args:
+            ts: A timestamp-like value, or None.
+
+        Returns:
+            The whole-day age as an int, or None if ``ts`` is missing.
+        """
         if ts is None or pd.isna(ts):
             return None
         return int((today - pd.to_datetime(ts).normalize()).days)
@@ -292,6 +314,15 @@ def render(workouts, sleep, recovery):
                 ) * 100
 
                 def freq_label(x):
+                    """Label a nap-frequency percentage into a band.
+
+                    Args:
+                        x: Nap frequency as a percentage.
+
+                    Returns:
+                        ``"🔴 Low"`` (<=15), ``"🟡 Moderate"`` (<=30),
+                        ``"🟢 High"`` otherwise, or ``"No data"`` if missing.
+                    """
                     if pd.isna(x):
                         return "No data"
                     if x <= 15:

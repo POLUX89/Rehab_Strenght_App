@@ -22,19 +22,32 @@ from sklearn.tree import DecisionTreeRegressor
 
 
 def render(df_model, predictors):
+    """Render the Bagging & Boosting sub-branch.
+
+    Trains Random Forest, AdaBoost and Gradient Boosting with grid search,
+    compares them, and shows metrics and a learning curve for the winner.
+
+    Args:
+        df_model: Model-ready DataFrame of predictors and target.
+        predictors: Predictor column names.
+
+    Returns:
+        None.
+    """
+
     @st.cache_data(show_spinner="Training ensemble models... (runs once per dataset)")
     def fit_ensemble_models(X_train, y_train, X_test, y_test):
-        """
-        Fit RF, Adaboost and Gradient Boosting with grid search hyperparameters
-        ------------
-        Parameters:
-        X_train: pd.DataFrame - Training features
-        y_train: pd.Series - Training target
-        X_test: pd.DataFrame - Testing features
-        y_test: pd.Series - Testing target
-        ------------
+        """Fit RF, AdaBoost and Gradient Boosting with grid-searched hyperparameters.
+
+        Args:
+            X_train: Training features.
+            y_train: Training target.
+            X_test: Test features.
+            y_test: Test target.
+
         Returns:
-        dict - Dictionary of model name to fitted model and performance metrics
+            A dict mapping each model name to its fitted model and
+            performance metrics.
         """
         results = []
         # ------------------ RF ---------------------------
@@ -271,19 +284,19 @@ def render(df_model, predictors):
         st.header("📈 Learning Curve for Best Ensemble Model")
 
         def metrics_lcv_ensemble(df, x_train, x_test, y_train, y_test, model=best_model_ensemble):
-            """
-            Learning Curve for winner model
-            ------------
-            Parameters:
-            df: pd.DataFrame - Full dataframe
-            x_train: pd.DataFrame - Training features
-            x_test: pd.DataFrame - Testing features
-            y_train: pd.Series - Training target
-            y_test: pd.Series - Testing target
-            model: sklearn estimator - Fitted model to evaluate learning curve
-            ------------
+            """Plot the learning curve for the winning ensemble model.
+
+            Args:
+                df: Full DataFrame.
+                x_train: Training features.
+                x_test: Test features.
+                y_train: Training target.
+                y_test: Test target.
+                model: Fitted estimator to evaluate. Defaults to the best
+                    ensemble model.
+
             Returns:
-            None - Displays learning curve plot
+                None. Displays the learning-curve plot.
             """
             from sklearn.base import clone
 

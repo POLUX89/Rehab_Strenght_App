@@ -25,6 +25,13 @@ class CredentialsNotFoundError(RuntimeError):
 
 
 def _from_streamlit_secrets() -> dict[str, Any] | None:
+    """Read service-account credentials from ``st.secrets`` if available.
+
+    Returns:
+        The ``gcp_service_account`` secrets table as a dict, or None when
+        Streamlit is not installed, there is no active Streamlit runtime, or
+        the key is absent.
+    """
     try:
         import streamlit as st
     except ModuleNotFoundError:
@@ -39,6 +46,18 @@ def _from_streamlit_secrets() -> dict[str, Any] | None:
 
 
 def _service_account_info() -> dict[str, Any]:
+    """Resolve service-account credentials from the first available source.
+
+    Tries, in order: the ``GCP_SERVICE_ACCOUNT_JSON`` inline JSON, the file
+    at ``GOOGLE_APPLICATION_CREDENTIALS``, then Streamlit secrets.
+
+    Returns:
+        The parsed service-account info as a dict.
+
+    Raises:
+        CredentialsNotFoundError: If no source yields usable credentials, or
+            ``GOOGLE_APPLICATION_CREDENTIALS`` points to a missing file.
+    """
     raw = os.getenv("GCP_SERVICE_ACCOUNT_JSON")
     if raw:
         return json.loads(raw)
@@ -64,11 +83,25 @@ def _service_account_info() -> dict[str, Any]:
 
 
 def get_credentials() -> Credentials:
+    """Build Google service-account credentials scoped to Sheets and Drive.
+
+    Returns:
+        A ``Credentials`` object built from the resolved service-account
+        info and the read-only Sheets/Drive scopes.
+
+    Raises:
+        CredentialsNotFoundError: If no usable credentials can be resolved.
+    """
     return Credentials.from_service_account_info(_service_account_info(), scopes=SHEETS_SCOPES)
 
 
 def get_services() -> tuple[Any, Any]:
-    """Devuelve los clientes ``(sheets, drive)`` ya autenticados."""
+    """Build authenticated Google Sheets and Drive API clients.
+
+    Returns:
+        A ``(sheets, drive)`` tuple of API client objects with discovery
+        caching disabled.
+    """
     creds = get_credentials()
     sheets = build("sheets", "v4", credentials=creds, cache_discovery=False)
     drive = build("drive", "v3", credentials=creds, cache_discovery=False)

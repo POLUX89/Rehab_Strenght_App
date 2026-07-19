@@ -12,6 +12,15 @@ from . import sleep, strong
 
 
 def main() -> int:
+    """Run the full ingestion pipeline (sleep, then workouts).
+
+    Executes each step in order, catching and reporting failures per step so
+    one broken source does not abort the rest.
+
+    Returns:
+        Process exit code: ``0`` if every step succeeded, ``1`` if any
+        step raised.
+    """
     print(f"\n🚀 Ingesta completa — {date.today()}")
 
     steps = [

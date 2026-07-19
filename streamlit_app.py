@@ -17,9 +17,24 @@ import io
 from datetime import date
 import statsmodels.api as sm
 import scipy.stats as stats
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, roc_auc_score, classification_report, recall_score, precision_score, f1_score
+from sklearn.metrics import (
+    mean_squared_error,
+    r2_score,
+    mean_absolute_error,
+    roc_auc_score,
+    classification_report,
+    recall_score,
+    precision_score,
+    f1_score,
+)
 from sklearn.model_selection import train_test_split, TimeSeriesSplit, GridSearchCV
-from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix, classification_report, roc_curve
+from sklearn.metrics import (
+    roc_auc_score,
+    accuracy_score,
+    confusion_matrix,
+    classification_report,
+    roc_curve,
+)
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 from statsmodels.stats.diagnostic import het_breuschpagan, linear_reset
 from statsmodels.stats.stattools import durbin_watson
@@ -83,22 +98,26 @@ if show_dark:
         [data-testid="stHeader"] { background: rgba(0,0,0,0); }
         </style>
         """,
-        unsafe_allow_html=True
+        unsafe_allow_html=True,
     )
     import matplotlib as mpl
-    mpl.rcParams.update({
-        "figure.facecolor": "#0e1117",
-        "axes.facecolor": "#0e1117",
-        "savefig.facecolor": "#0e1117",
-        "text.color": "#e5e7eb",
-        "axes.labelcolor": "#e5e7eb",
-        "xtick.color": "#e5e7eb",
-        "ytick.color": "#e5e7eb",
-        "axes.edgecolor": "#e5e7eb",
-        "grid.color": "#2d3748"
-    })
+
+    mpl.rcParams.update(
+        {
+            "figure.facecolor": "#0e1117",
+            "axes.facecolor": "#0e1117",
+            "savefig.facecolor": "#0e1117",
+            "text.color": "#e5e7eb",
+            "axes.labelcolor": "#e5e7eb",
+            "xtick.color": "#e5e7eb",
+            "ytick.color": "#e5e7eb",
+            "axes.edgecolor": "#e5e7eb",
+            "grid.color": "#2d3748",
+        }
+    )
 else:
     import matplotlib as mpl
+
     mpl.rcParams.update(mpl.rcParamsDefault)
 
 # -------------------------
@@ -106,31 +125,35 @@ else:
 # -------------------------
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 # -------------------------
 # Uploads (hidden after loaded)
 # -------------------------
 
+
 # ---------- helpers ----------
 def all_loaded() -> bool:
-    return all(st.session_state.get(k) is not None for k in ["df_workouts", "df_sleep", "df_recovery"])
+    """Report whether all three datasets are loaded into session state.
+
+    Returns:
+        True if ``df_workouts``, ``df_sleep`` and ``df_recovery`` are all
+        present and non-None, else False.
+    """
+    return all(
+        st.session_state.get(k) is not None for k in ["df_workouts", "df_sleep", "df_recovery"]
+    )
+
 
 def load_df_from_upload(uploaded_file):
+    """Read an uploaded CSV file into a DataFrame.
+
+    Args:
+        uploaded_file: A Streamlit ``UploadedFile`` holding CSV bytes.
+
+    Returns:
+        The parsed DataFrame.
+    """
     data = uploaded_file.getvalue()
     return pd.read_csv(io.BytesIO(data))
-
-
 
 
 # ---------- init state ----------
@@ -163,11 +186,15 @@ if st.session_state.show_uploads:
     with st.expander("Upload panel", expanded=True):
         c1, c2, c3 = st.columns(3)
         with c1:
-            up_workouts = st.file_uploader("Workouts: clean_strong_workouts.csv", type=["csv"], key="workouts")
+            up_workouts = st.file_uploader(
+                "Workouts: clean_strong_workouts.csv", type=["csv"], key="workouts"
+            )
         with c2:
             up_sleep = st.file_uploader("Sleep: clean_sleep_data.csv", type=["csv"], key="sleep")
         with c3:
-            up_recovery = st.file_uploader("Recovery: clean_recovery_data.csv", type=["csv"], key="recovery")
+            up_recovery = st.file_uploader(
+                "Recovery: clean_recovery_data.csv", type=["csv"], key="recovery"
+            )
 
         # IMPORTANT: persist + normalize immediately when uploads exist
         if up_workouts is not None and st.session_state.get("df_workouts") is None:
@@ -187,13 +214,23 @@ if not all_loaded():
     st.stop()
 # Use dataframes ONLY from session_state from here onward
 workouts = st.session_state.df_workouts
-sleep    = st.session_state.df_sleep
+sleep = st.session_state.df_sleep
 recovery = st.session_state.df_recovery
 
 # -------------------------
 # Tabs
 # -------------------------
-tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["🏠 Home", "🏋️ Workouts", "😴 Sleep", "🧠 Recovery", "🔗 Time Series Analysis", "📉 Stats", "⚙️ Models"])
+tab0, tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    [
+        "🏠 Home",
+        "🏋️ Workouts",
+        "😴 Sleep",
+        "🧠 Recovery",
+        "🔗 Time Series Analysis",
+        "📉 Stats",
+        "⚙️ Models",
+    ]
+)
 # =========================
 # TAB 0 — HOME
 # =========================
