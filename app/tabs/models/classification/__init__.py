@@ -13,11 +13,9 @@ import seaborn as sns
 import streamlit as st
 from sklearn.model_selection import train_test_split
 
-from . import logit, nonlinear_classification
+from . import ensemble_classification, logit, nonlinear_classification
 
 
-# knn, dt, svm
-# rf, adaboost
 def render(df_model, predictors):
     """Render the Classification dispatcher.
 
@@ -147,5 +145,4 @@ def render(df_model, predictors):
     elif models == "Non Linear Models":
         nonlinear_classification.render(split)
     elif models == "Bagging & Boosting Models":
-        st.info("🚧 Bagging & Boosting Models (Random Forest, AdaBoost) — coming soon.")
-        # ensemble.render(split)
+        ensemble_classification.render(split)

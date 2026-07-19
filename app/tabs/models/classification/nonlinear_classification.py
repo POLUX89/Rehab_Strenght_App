@@ -234,11 +234,13 @@ def _fit_nonlinear(split, synthetic=False):
     return results_df, time.time() - time0, winner
 
 
-def graph_winner(results):
-    """Graph the winner of the non-linear models.
+def graph_winner(results, title="Non-Linear Models"):
+    """Graph the winner among the compared models.
 
     Args:
         results: DataFrame with train/test metrics for each model.
+        title: Model-family label used in the chart's suptitle. Defaults to
+            ``"Non-Linear Models"``; the ensemble branch passes its own.
 
     Returns:
         None.
@@ -280,17 +282,17 @@ def graph_winner(results):
             va="bottom",
             fontsize=6,
         )
+    ax[0].xaxis.set_ticklabels(results.index, fontsize=6, rotation=45)
     ax[0].set_title("Train F2 Score", fontsize=8, fontweight="bold")
     ax[0].set_xlabel("")
     ax[0].set_ylabel("F2 Score", fontsize=10, fontweight="bold")
     ax[0].set_ylim(0, 1)
     ax[1].set_title("Test F2 Score", fontsize=8, fontweight="bold")
     ax[1].set_xlabel("")
+    ax[1].xaxis.set_ticklabels(results.index, fontsize=6, rotation=45)
     ax[1].set_ylabel("")
     ax[1].set_ylim(0, 1)
-    plt.suptitle(
-        "Train vs Test F2 Scores for Non-Linear Models", fontsize=14, fontweight="bold", y=1.05
-    )
+    plt.suptitle(f"Train vs Test F2 Scores for {title}", fontsize=14, fontweight="bold", y=1.05)
     sns.despine()
     st.pyplot(fig)
     plt.close(fig)
