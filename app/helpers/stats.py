@@ -13,7 +13,15 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 
 def normality_test(series):
-    """Perform Shapiro-Wilk test for normality."""
+    """Run the Shapiro-Wilk normality test on a series.
+
+    Args:
+        series: Numeric series to test; missing values are dropped first.
+
+    Returns:
+        A ``(p_value, interpretation)`` tuple, where ``interpretation`` is a
+        human-readable verdict using the 0.05 significance threshold.
+    """
     series = series.dropna()
     stat, p_value = stats.shapiro(series)
     if p_value > 0.05:
@@ -24,7 +32,16 @@ def normality_test(series):
 
 
 def outlier_dectection_iqr(series):
-    """Detect outliers using the IQR method."""
+    """Detect outliers with the interquartile-range (Tukey) rule.
+
+    Flags values below ``Q1 - 1.5*IQR`` or above ``Q3 + 1.5*IQR``.
+
+    Args:
+        series: Numeric series; missing values are dropped first.
+
+    Returns:
+        A series containing only the outlier values.
+    """
     series = series.dropna()
     Q1 = series.quantile(0.25)
     Q3 = series.quantile(0.75)
@@ -36,7 +53,19 @@ def outlier_dectection_iqr(series):
 
 
 def outlier_detection_zscore_modified(series, threshold=3):
-    """Detect outliers using Z-score method."""
+    """Detect outliers with the median-absolute-deviation modified z-score.
+
+    Uses ``0.6745 * (x - median) / MAD`` and flags values whose absolute
+    score exceeds ``threshold``. More robust to outliers than the classic
+    mean/standard-deviation z-score.
+
+    Args:
+        series: Numeric series; missing values are dropped first.
+        threshold: Absolute modified-z cutoff. Defaults to 3.
+
+    Returns:
+        A series containing only the outlier values.
+    """
     series = series.dropna()
     mad = np.abs(series - series.median()).median()
     modified_z_scores = 0.6745 * (series - series.median()) / mad
@@ -44,7 +73,20 @@ def outlier_detection_zscore_modified(series, threshold=3):
     return outliers
 
 
-def fit_distribution(data):  # Function to fit distributions and calculate AIC/BIC
+def fit_distribution(data):
+    """Fit several candidate distributions and rank them by AIC.
+
+    Fits normal, Student-t, Cauchy, Laplace, skew-normal, lognormal, gamma,
+    exponential and Weibull distributions via maximum likelihood, computing
+    AIC and BIC for each. Distributions that fail to fit are skipped.
+
+    Args:
+        data: Array-like sample of values.
+
+    Returns:
+        A DataFrame with columns ``distribution``, ``params``, ``AIC`` and
+        ``BIC``, sorted ascending by ``AIC`` (best fit first).
+    """
     data = np.array(data)
     distribution = {
         "normal": stats.norm,
@@ -83,11 +125,40 @@ def fit_distribution(data):  # Function to fit distributions and calculate AIC/B
 
 
 def compute_ecdf(data, x, complementary=True):
+    """Evaluate the empirical CDF (or its complement) at a point.
+
+    Args:
+        data: Array-like sample of values.
+        x: Threshold at which to evaluate.
+        complementary: If True, return ``P(data > x)`` (the survival
+            function); if False, return ``P(data <= x)``. Defaults to True.
+
+    Returns:
+        The empirical probability, rounded to 4 decimals.
+    """
     counter = np.sum(data > x) if complementary else np.sum(data <= x)
     return np.round(counter / len(data), 4)
 
 
 def metrics_learning_curve(df, sample_size, predictors, H=30, min_train=10):
+    """Fit an OLS model on a data prefix and score train/test at one checkpoint.
+
+    Takes the first ``sample_size`` rows, holds out the last ``H`` as a test
+    window, fits an HC3-robust OLS on the rest, and reports fit/error metrics
+    for one point of a learning curve.
+
+    Args:
+        df: Ordered DataFrame containing the predictors and the ``Score``
+            target.
+        sample_size: Number of leading rows to use for this checkpoint.
+        predictors: Predictor column names.
+        H: Size of the held-out test window. Defaults to 30.
+        min_train: Minimum training rows required. Defaults to 10.
+
+    Returns:
+        A dict of train/test sizes and MAE/RMSE/MSE/R² metrics, or None if
+        the prefix has fewer than ``H + min_train`` rows.
+    """
     df_sample = df.iloc[:sample_size].copy()
 
     # Require enough rows to form a stable train/test

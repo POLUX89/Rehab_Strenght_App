@@ -18,6 +18,15 @@ from app.helpers.plots import plot_line
 
 
 def render(sleep):
+    """Render the Sleep tab.
+
+    Args:
+        sleep: Sleep DataFrame, or None if not loaded.
+
+    Returns:
+        The sleep DataFrame as it should persist after the tab (None, the
+        same object, or a date-sorted copy), keeping the monolith's contract.
+    """
     st.header("😴 Sleep")
 
     if sleep is None:

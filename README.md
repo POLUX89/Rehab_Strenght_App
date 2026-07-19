@@ -2,7 +2,7 @@
 
 [![Live app](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://rehab-strength.streamlit.app)
 [![CI](https://github.com/POLUX89/Rehab_Strenght_App/actions/workflows/ci.yml/badge.svg)](https://github.com/POLUX89/Rehab_Strenght_App/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org)
+[![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org)
 [![Streamlit](https://img.shields.io/badge/streamlit-1.53-FF4B4B.svg)](https://streamlit.io)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
@@ -11,44 +11,11 @@ A personal analytics dashboard built with **Streamlit** to track **workouts, sle
 
 **▶️ Live app: [rehab-strength.streamlit.app](https://rehab-strength.streamlit.app)**
 
-## 🎥 Demo.
+## 🎥 Demo
 https://github.com/user-attachments/assets/7041db62-8f85-4449-a515-f1960cbdb90b
 
 ---
-## 📸 Dashboard Preview
 
-### Home
-![Home1](assets/home1.png)
-![Home2](assets/home3.png)
-![Home2](assets/home2.png)
-
-## Workouts
-![Workouts](assets/workouts_2.png)
-
-### Recovery
-![correlation](assets/correlation.png)
-
-### Sleep
-![sleep](assets/sleep.png)
-
-## Time Series Analysis
-![tsa](assets/tsa1.png)
-![tsa](assets/tsa2.png)
-
-## Stats
-![stats](assets/stats1.png)
-![stats](assets/stats2.png)
-![stats](assets/stats3.png)
-
-# Models
-![models](assets/models1.png)
-![models](assets/models2.png)
-![models](assets/models3.png)
-![models](assets/models4.png)
-![models](assets/models5.png)
-![models](assets/models6.png)
-![models](assets/models7.png)
----
 ## 🎯 Why this project exists
 
 This app was created out of a **real personal need**.
@@ -62,7 +29,7 @@ After experiencing a **Cerebrovascular Accident (CVA)**, I needed a reliable way
 Most fitness apps show numbers without context.
 This dashboard is designed to show **what the data actually represents, how recent it is, and how confident we should be when interpreting it**.
 
-Moreover, to practice statistical test and machine learning models to perform a diagnostic analysis where the key is why happened.
+Moreover, to practice statistical tests and machine learning models to perform a diagnostic analysis where the key question is *why* it happened.
 ---
 
 ## 🧠 What the dashboard does
@@ -87,10 +54,10 @@ The app integrates **three independent data sources**:
 - Transparent visualization of trends and variability
 
 ## 🔗 Time Series Analysis
-- Performa a time series analysis
+- Performs a time series analysis
 - ACF and PACF plots
-- Statistical tests (ADF, KPSS) for stationary
-- An insight based on the tsa to use or not time series models
+- Statistical tests (ADF, KPSS) for stationarity
+- An insight based on the TSA on whether to use time series models
 
 ### 📉 Stats
 - Location estimate
@@ -102,6 +69,45 @@ The app integrates **three independent data sources**:
 - Use ML to interpret and explain what happened with a regression problem (Sleep Score) and a classification problem (Good or Bad sleep)
 - Supervised models for regression and classification
 - Unsupervised models and Dimensionality Reduction for plotting
+
+---
+
+## 📸 Dashboard Preview
+
+### Home
+![Home](assets/home1.png)
+![Home](assets/home3.png)
+![Home](assets/home2.png)
+
+### Workouts
+![Workouts](assets/workouts_2.png)
+
+### Recovery
+![Recovery](assets/correlation.png)
+
+### Sleep
+![Sleep](assets/sleep.png)
+
+### Time Series Analysis
+![Time Series Analysis](assets/tsa1.png)
+![Time Series Analysis](assets/tsa2.png)
+
+### Stats
+![Stats](assets/stats1.png)
+![Stats](assets/stats2.png)
+![Stats](assets/stats3.png)
+
+### Models
+![Models](assets/models1.png)
+![Models](assets/models2.png)
+![Models](assets/models3.png)
+![Models](assets/models4.png)
+![Models](assets/models5.png)
+![Models](assets/models6.png)
+![Models](assets/models7.png)
+
+### Classification
+![Classification](assets/classification.png)
 
 ---
 
@@ -152,6 +158,10 @@ Inside the app:
 
 ```
 ├── streamlit_app.py            # Dashboard entrypoint (deployed to Streamlit Cloud)
+├── app/
+│   ├── helpers/                # Pure stats/transforms + plotting helpers
+│   └── tabs/                   # One module per tab; models/ split into
+│                               #   regression/, classification/, unsupervised
 ├── src/rehab_strength/
 │   ├── config.py               # Paths & settings, all relative to the repo root
 │   ├── gsheets.py              # Google auth — credentials resolved from the environment
@@ -171,7 +181,7 @@ Inside the app:
 
 ## 🚀 Tech stack
 
-- **Python 3.11+**
+- **Python 3.13** — pinned via `.python-version` for parity with Streamlit Cloud
 - **Streamlit** — dashboard
 - **Pandas / NumPy** — data wrangling
 - **Matplotlib / Seaborn** — visualization

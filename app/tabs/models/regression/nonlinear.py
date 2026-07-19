@@ -23,19 +23,33 @@ from sklearn.tree import DecisionTreeRegressor
 
 
 def render(df_model, predictors):
+    """Render the Non Linear Models sub-branch.
+
+    Trains Decision Tree, SVM and KNN (with scaling and grid-searched
+    hyperparameters), compares them, and shows metrics and a learning curve
+    for the winner.
+
+    Args:
+        df_model: Model-ready DataFrame of predictors and target.
+        predictors: Predictor column names.
+
+    Returns:
+        None.
+    """
+
     @st.cache_data(show_spinner="Fitting non-linear models... (runs once per dataset)")
     def fit_reg_non_linear_models(X_train, y_train, X_test, y_test):
-        """
-        Fit DT, SVM, KNN with scaling features and select best hyperparameters using GridSearchCV.
-        ------------
-        Parameters:
-        X_train: pd.DataFrame - Training features
-        y_train: pd.Series - Training target
-        X_test: pd.DataFrame - Testing features
-        y_test: pd.Series - Testing target
-        ------------
+        """Fit Decision Tree, SVM and KNN with scaling and grid-searched hyperparameters.
+
+        Args:
+            X_train: Training features.
+            y_train: Training target.
+            X_test: Test features.
+            y_test: Test target.
+
         Returns:
-        dict - Dictionary of model name to fitted model and performance metrics
+            A dict mapping each model name to its fitted model and
+            performance metrics.
         """
         results = []
         # ------------------DT------------------
@@ -259,19 +273,19 @@ def render(df_model, predictors):
         def metrics_lcv_non_linear(
             df, x_train, x_test, y_train, y_test, model=best_model_non_linear
         ):
-            """
-            Learning Curve for winner model
-            ------------
-            Parameters:
-            df: pd.DataFrame - Full dataframe
-            x_train: pd.DataFrame - Training features
-            x_test: pd.DataFrame - Testing features
-            y_train: pd.Series - Training target
-            y_test: pd.Series - Testing target
-            model: sklearn estimator - Fitted model to evaluate learning curve
-            ------------
+            """Plot the learning curve for the winning non-linear model.
+
+            Args:
+                df: Full DataFrame.
+                x_train: Training features.
+                x_test: Test features.
+                y_train: Training target.
+                y_test: Test target.
+                model: Fitted estimator to evaluate. Defaults to the best
+                    non-linear model.
+
             Returns:
-            None - Displays learning curve plot
+                None. Displays the learning-curve plot.
             """
             from sklearn.base import clone
 

@@ -24,6 +24,18 @@ from app.helpers.stats import (
 
 
 def render(recovery, workouts):
+    """Render the Stats tab (distributions, normality, outliers, hypothesis tests).
+
+    Assumes ``recovery`` and ``workouts`` are non-None (guaranteed upstream by
+    the load gate).
+
+    Args:
+        recovery: Recovery DataFrame.
+        workouts: Workouts DataFrame.
+
+    Returns:
+        None. Nothing produced here is consumed by later tabs.
+    """
     # Data agg necessary for hypothesis testing
     recovery["Date"] = pd.to_datetime(recovery["Date"], errors="coerce")  # Convert to datetime
     workouts_daily = workouts.groupby("Date", as_index=False).agg(

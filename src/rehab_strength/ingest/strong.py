@@ -32,7 +32,17 @@ MAX_PLAUSIBLE_WEIGHT_LBS = 900
 
 
 def parse_duration_to_minutes(value) -> float | None:
-    """Convierte '1h 5m', '45m', 'HH:MM:SS' o 'MM:SS' a minutos totales."""
+    """Parse a workout-duration string into total minutes.
+
+    Handles the ``"1h 5m"``, ``"45m"``, ``"HH:MM:SS"`` and ``"MM:SS"`` forms.
+
+    Args:
+        value: Duration value; may be a string or missing.
+
+    Returns:
+        The duration in minutes as a float, or ``pd.NA`` if the value is
+        missing or empty.
+    """
     if pd.isna(value):
         return pd.NA
     s = str(value).strip()
@@ -57,6 +67,18 @@ def parse_duration_to_minutes(value) -> float | None:
 
 
 def clean_workouts(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean a raw Strong export into a tidy working-sets DataFrame.
+
+    Parses dates, drops non-working sets and unused columns, filters out
+    implausible weights, and derives ``VOLUME``, ``RECORDED_RPE``,
+    ``REPS_ONLY`` and parsed ``DURATION_MIN``.
+
+    Args:
+        df: Raw workouts DataFrame read from the Strong CSV.
+
+    Returns:
+        The cleaned workouts DataFrame with a reset integer index.
+    """
     df = df.copy()
     df["DATE"] = pd.to_datetime(df["DATE"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
     df["SET_ORDER"] = df["SET_ORDER"].astype(str)
@@ -85,6 +107,20 @@ def clean_workouts(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def run(input_path: Path = STRONG_CSV, output_path: Path = CLEAN_WORKOUTS_CSV) -> Path:
+    """Run the workouts ingestion step and write the clean CSV.
+
+    Args:
+        input_path: Path to the raw Strong export CSV. Defaults to
+            ``STRONG_CSV``.
+        output_path: Destination path for the clean workouts CSV. Defaults to
+            ``CLEAN_WORKOUTS_CSV``.
+
+    Returns:
+        The path the clean CSV was written to.
+
+    Raises:
+        FileNotFoundError: If ``input_path`` does not exist.
+    """
     ensure_dirs()
     if not input_path.is_file():
         raise FileNotFoundError(

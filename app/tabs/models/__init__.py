@@ -13,10 +13,23 @@ import streamlit as st
 
 from app.helpers.transforms import string_to_decimal_hours
 
-from . import regression, unsupervised
+from . import classification, regression, unsupervised
 
 
 def render(time_series_analysis):
+    """Render the Models tab and dispatch by algorithm type.
+
+    Re-reads recovery fresh from ``st.session_state``, builds ``df_model`` and
+    the predictor list, then delegates to regression, classification or
+    unsupervised based on the selected algorithm type.
+
+    Args:
+        time_series_analysis: Overall stationarity verdict from the Time
+            Series tab, surfaced to the user for context.
+
+    Returns:
+        None.
+    """
     st.header("⚙️ Models")
     st.success(f"Overall Time Series Analysis: **{time_series_analysis}**")
 
@@ -56,7 +69,8 @@ def render(time_series_analysis):
     )
     if types == "Regression":
         regression.render(df_model, predictors)
-
+    elif types == "Classification":
+        classification.render(df_model, predictors)
     # ---------------------------------- UNSUPERVISED LEARNING ----------------------------------
     elif types == "Unsupervised":
         unsupervised.render(df_model)

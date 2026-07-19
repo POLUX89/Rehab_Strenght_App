@@ -18,6 +18,19 @@ from app.helpers.transforms import daily_ma, weekly_bucket
 
 
 def render(workouts, cva_dt, smooth_days):
+    """Render the Workouts tab.
+
+    Mutates ``workouts`` in place (adds a ``Week`` column); since the frame is
+    passed by reference the change is reflected in the caller's variable.
+
+    Args:
+        workouts: Workouts DataFrame, or None if not loaded.
+        cva_dt: Stroke (CVA) reference date used to anchor timelines.
+        smooth_days: Rolling window, in days, for smoothed trend lines.
+
+    Returns:
+        None.
+    """
     st.header("🏋️ Workouts")
 
     if workouts is None:

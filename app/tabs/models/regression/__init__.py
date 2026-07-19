@@ -14,6 +14,18 @@ from . import ensemble, linear, nonlinear, ols
 
 
 def render(df_model, predictors):
+    """Render the Regression dispatcher and delegate to the chosen sub-branch.
+
+    Shows a segmented control and routes to ols, linear (Other Linear),
+    nonlinear (Non Linear) or ensemble (Bagging & Boosting).
+
+    Args:
+        df_model: Model-ready DataFrame of predictors and target.
+        predictors: Predictor column names.
+
+    Returns:
+        None.
+    """
     models = st.segmented_control(
         "Select Model Type:",
         [

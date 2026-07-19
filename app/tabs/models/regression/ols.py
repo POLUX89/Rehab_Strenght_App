@@ -21,6 +21,19 @@ from app.helpers.stats import fit_distribution, metrics_learning_curve, normalit
 
 
 def render(df_model, predictors):
+    """Render the OLS diagnosis sub-branch.
+
+    Fits an OLS model and shows regression diagnostics: VIF, residual
+    analysis, heteroskedasticity/specification tests, a learning curve and
+    SHAP.
+
+    Args:
+        df_model: Model-ready DataFrame of predictors and target.
+        predictors: Predictor column names.
+
+    Returns:
+        None.
+    """
     # ------------------------------FROZEN MODEL CONDITIONALS-----------------------------
     if "model_frozen" not in st.session_state:
         st.session_state.model_frozen = None

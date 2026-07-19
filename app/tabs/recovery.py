@@ -24,6 +24,17 @@ COMPONENT_CANDIDATES = [
 
 
 def render(recovery):
+    """Render the Recovery tab.
+
+    Args:
+        recovery: Recovery DataFrame, or None if not loaded.
+
+    Returns:
+        The recovery DataFrame as it should persist after the tab: a
+        date-sorted copy where applicable, the same object in the saved
+        cases, or None. The copy shields ``st.session_state.df_recovery`` from
+        later in-place mutations.
+    """
     st.header("🧠 Recovery")
 
     if recovery is None:
