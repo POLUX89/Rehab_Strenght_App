@@ -21,6 +21,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
 
+from app.tabs.models.shap_utils import compute_shap_values
+
 
 def render(df_model, predictors):
     """Render the Non Linear Models sub-branch.
@@ -330,12 +332,12 @@ def render(df_model, predictors):
 
             sns.barplot(
                 x=["Train", "Test"],
-                y=[train_mse_mean.mean(), test_mse_mean.mean()],
+                y=[train_mse_mean[-1], test_mse_mean[-1]],
                 ax=ax[1],
                 palette=["lightblue", "orange"],
             )
             ax[1].set_title(
-                "Average RMSE at Different Training Sizes",
+                "Final RMSE (Full Training Set)",
                 fontweight="bold",
                 fontsize=8,
                 pad=15,
@@ -384,22 +386,40 @@ def render(df_model, predictors):
             model=best_model_non_linear,
         )
     # --------------------------- EXPLANATORY POWER -----------------------------
-    with st.expander("📊 Explanatory Power of Predictors", expanded=False):
+    with st.expander("📊 Explanatory Power of Predictors", expanded=True):
         st.subheader("📊 Explanatory Power of Predictors")
         # Background dataset — small sample is enough for speed
-        X_background = shap.sample(train_lin[predictors], 100)
+        X_background = shap.sample(train_lin[predictors], 100, random_state=42)
+        # Cached; TreeExplainer if the winner is a tree, else model-agnostic.
+        shap_values_non_linear = compute_shap_values(
+            best_model_non_linear, X_background, test_lin[predictors], cache_key="reg_nonlinear"
+        )
+        sample_ind = -1  # last sample in the test set
 
-        explainer_non_linear = shap.Explainer(best_model_non_linear.predict, X_background)
-        shap_values_non_linear = explainer_non_linear(test_lin[predictors])
+        force_plot = shap.plots.force(
+            shap_values_non_linear[sample_ind], matplotlib=True, show=False
+        )
+        plt.title(f"SHAP Force Plot for last sample {test_lin.index[sample_ind]}")
+        st.pyplot(force_plot)
+        plt.close(force_plot)
+
         col1, col2 = st.columns(2)
         with col1:
             # Beeswarm
             fig, ax = plt.subplots(figsize=(10, 5))
             shap.plots.beeswarm(shap_values_non_linear, show=False)
             st.pyplot(fig)
+            plt.close(fig)
+            # Mean absolute SHAP values
+            fig, ax = plt.subplots(figsize=(8, 5))
+            shap.plots.bar(shap_values_non_linear, max_display=14, show=False)
+            plt.title("Mean Absolute SHAP Values")
+            st.pyplot(fig)
+            plt.close(fig)
         with col2:
-            # Waterfall
-            sample_ind = 0
+            # Waterfall for the last sample in the test set
             fig, ax = plt.subplots(figsize=(8, 5))
             shap.plots.waterfall(shap_values_non_linear[sample_ind], max_display=14, show=False)
+            plt.title(f"SHAP Waterfall Plot for last sample {test_lin.index[sample_ind]}")
             st.pyplot(fig)
+            plt.close(fig)
