@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import shap
 import streamlit as st
+from sklearn.base import is_classifier
 from sklearn.ensemble import (
     GradientBoostingClassifier,
     GradientBoostingRegressor,
@@ -87,7 +88,13 @@ def compute_shap_values(_model, X_background, X_explain, cache_key, _predict_fn=
     """
     final_estimator = _model[-1]  # last pipeline step
     if isinstance(final_estimator, _TREE_MODELS):
-        shap_values = shap.TreeExplainer(final_estimator, X_background)(X_explain)
+        # For classifier trees, explain the probability. Gradient Boosting
+        # otherwise reports log-odds (can go negative and reads worse than the
+        # RF/DT probability); "probability" is exact for trees and uniform.
+        model_output = "probability" if is_classifier(final_estimator) else "raw"
+        shap_values = shap.TreeExplainer(final_estimator, X_background, model_output=model_output)(
+            X_explain
+        )
         if shap_values.values.ndim == 3:
             # Tree classifier → (n, features, n_classes); keep the positive class
             # so plots match the 2-D shape of the model-agnostic route.
