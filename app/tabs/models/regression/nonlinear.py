@@ -22,6 +22,35 @@ from sklearn.svm import SVR
 from sklearn.tree import DecisionTreeRegressor
 
 
+@st.cache_data(show_spinner="Computing SHAP values… (cached per dataset)")
+def _compute_shap_values(_model, X_background, X_explain):
+    """Compute SHAP values for the winning non-linear model.
+
+    Picks the explainer by model type: ``shap.TreeExplainer`` when the winner is
+    a decision tree (fast and exact), else the model-agnostic explainer for
+    KNN/SVR. Both yield attributions in the original predictors — the tree
+    pipeline has no feature transform, and the agnostic route explains
+    ``model.predict`` on the original X.
+
+    Cached like in ``linear.py``: ``_model`` is passed unhashed (leading
+    underscore); the data keys the cache.
+
+    Args:
+        _model: Winning pipeline exposing ``predict`` (not hashed).
+        X_background: Background sample used by the explainer.
+        X_explain: Rows to explain.
+
+    Returns:
+        A SHAP ``Explanation`` for ``X_explain``.
+    """
+    final_estimator = _model[-1]  # last pipeline step
+    if isinstance(final_estimator, DecisionTreeRegressor):
+        explainer = shap.TreeExplainer(final_estimator, X_background)
+    else:
+        explainer = shap.Explainer(_model.predict, X_background)
+    return explainer(X_explain)
+
+
 def render(df_model, predictors):
     """Render the Non Linear Models sub-branch.
 
@@ -384,21 +413,40 @@ def render(df_model, predictors):
             model=best_model_non_linear,
         )
     # --------------------------- EXPLANATORY POWER -----------------------------
-    with st.expander("📊 Explanatory Power of Predictors", expanded=False):
+    with st.expander("📊 Explanatory Power of Predictors", expanded=True):
         st.subheader("📊 Explanatory Power of Predictors")
         # Background dataset — small sample is enough for speed
-        X_background = shap.sample(train_lin[predictors], 100)
-        explainer_non_linear = shap.Explainer(best_model_non_linear.predict, X_background)
-        shap_values_non_linear = explainer_non_linear(test_lin[predictors])
+        X_background = shap.sample(train_lin[predictors], 100, random_state=42)
+        # Cached; TreeExplainer if the winner is a tree, else model-agnostic.
+        shap_values_non_linear = _compute_shap_values(
+            best_model_non_linear, X_background, test_lin[predictors]
+        )
+        sample_ind = -1  # last sample in the test set
+
+        force_plot = shap.plots.force(
+            shap_values_non_linear[sample_ind], matplotlib=True, show=False
+        )
+        plt.title(f"SHAP Force Plot for last sample {test_lin.index[sample_ind]}")
+        st.pyplot(force_plot)
+        plt.close(force_plot)
+
         col1, col2 = st.columns(2)
         with col1:
             # Beeswarm
             fig, ax = plt.subplots(figsize=(10, 5))
             shap.plots.beeswarm(shap_values_non_linear, show=False)
             st.pyplot(fig)
+            plt.close(fig)
+            # Mean absolute SHAP values
+            fig, ax = plt.subplots(figsize=(8, 5))
+            shap.plots.bar(shap_values_non_linear, max_display=14, show=False)
+            plt.title("Mean Absolute SHAP Values")
+            st.pyplot(fig)
+            plt.close(fig)
         with col2:
-            # Waterfall
-            sample_ind = 0
+            # Waterfall for the last sample in the test set
             fig, ax = plt.subplots(figsize=(8, 5))
             shap.plots.waterfall(shap_values_non_linear[sample_ind], max_display=14, show=False)
+            plt.title(f"SHAP Waterfall Plot for last sample {test_lin.index[sample_ind]}")
             st.pyplot(fig)
+            plt.close(fig)
