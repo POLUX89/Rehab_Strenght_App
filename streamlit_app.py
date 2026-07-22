@@ -184,7 +184,7 @@ with right:
 
 # uploaders (fully hidden once loaded)
 if st.session_state.show_uploads:
-    with st.expander("Upload panel", expanded=True):
+    with st.expander("Upload panel", expanded=False):
         c1, c2, c3 = st.columns(3)
         with c1:
             up_workouts = st.file_uploader(
